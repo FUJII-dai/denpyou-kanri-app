@@ -6,6 +6,8 @@ import { supabase, retryOperation, getPollingInterval } from '../lib/supabase';
 import { format } from 'date-fns';
 import { getBusinessDayStart, getBusinessDayEnd } from '../utils/businessHours';
 
+const PENDING_UPDATE_TIMEOUT = 60000; // 60 seconds
+
 interface OrderState {
   orders: Order[];
   deletedOrders: Order[];
@@ -14,6 +16,8 @@ interface OrderState {
   pollingInterval: NodeJS.Timeout | null;
   channel: ReturnType<typeof supabase.channel> | null;
   pendingUpdates: Map<string, { timestamp: number; data: Partial<Order> }>;
+  isLoading?: boolean;
+  error?: Error | null;
   addOrder: (order: Order) => Promise<void>;
   updateOrder: (order: Order) => Promise<void>;
   deleteOrder: (id: string) => Promise<void>;
@@ -32,13 +36,7 @@ interface OrderState {
   cleanup: () => void;
 }
 
-const customStorage = {
-  ...createJSONStorage(() => localStorage),
-  removeItem: (name: string) => {
-    console.log('[OrderStore] Removing storage:', name);
-    localStorage.removeItem(name);
-  }
-};
+const customStorage = createJSONStorage<OrderState>(() => localStorage);
 
 const useOrderStore = create(
   persist<OrderState>(
@@ -68,7 +66,7 @@ const useOrderStore = create(
         }
         
         get().cleanup();
-        customStorage.removeItem('order-storage');
+        localStorage.removeItem('order-storage');
         
         set({
           orders: [],
@@ -458,8 +456,8 @@ const useOrderStore = create(
                 .select('*');
 
               if (!refreshError && refreshedData) {
-                const activeOrders = [];
-                const deletedOrders = [];
+                const activeOrders: Order[] = [];
+                const deletedOrders: Order[] = [];
 
                 refreshedData.forEach(order => {
                   const transformedOrder = {
@@ -509,8 +507,8 @@ const useOrderStore = create(
             })
             .subscribe();
 
-          const activeOrders = [];
-          const deletedOrders = [];
+          const activeOrders: Order[] = [];
+          const deletedOrders: Order[] = [];
 
           data.forEach(order => {
             const transformedOrder = {
@@ -657,11 +655,10 @@ const useOrderStore = create(
     {
       name: 'order-storage',
       storage: customStorage,
-      partialize: (state) => ({
-        orders: state.orders,
-        deletedOrders: state.deletedOrders,
-        lastOrderNumber: state.lastOrderNumber
-      })
+      partialize: (state) => {
+        const { orders, deletedOrders, lastOrderNumber } = state;
+        return { orders, deletedOrders, lastOrderNumber } as unknown as OrderState;
+      }
     }
   )
 );
