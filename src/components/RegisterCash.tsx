@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Plus, X, CircleDollarSign, RefreshCw, Wallet, Calculator, Download } from 'lucide-react';
+import { ArrowLeft, Plus, X, CircleDollarSign, RefreshCw, Wallet, Calculator, Download, AlertCircle } from 'lucide-react';
 import useRegisterCashStore from '../store/registerCashStore';
 import useOrderStore from '../store/orderStore';
 import { getBusinessDate } from '../utils/businessHours';
 import { formatPrice } from '../utils/price';
 import { format, parseISO } from 'date-fns';
 import { ja } from 'date-fns/locale';
+import { supabase } from '../lib/supabase';
 
 interface RegisterCashProps {
   onBack: () => void;
@@ -23,19 +24,89 @@ const RegisterCash: React.FC<RegisterCashProps> = ({ onBack }) => {
     loadRegisterCash,
     initialized: registerInitialized,
     updateNextDayAmount,
-    updateNextDayCoins
+    updateNextDayCoins,
+    resetStore
   } = useRegisterCashStore();
 
   const [withdrawalForms, setWithdrawalForms] = useState([{ amount: '', note: '' }]);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [loadingError, setLoadingError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
   const mountedRef = useRef(false);
+  const isMobile = useRef(window.innerWidth < 768);
+
+  const ensureRegisterCashTable = async () => {
+    try {
+      console.log('[RegisterCash] Ensuring register_cash table exists');
+      
+      const { error: checkError } = await supabase
+        .from('register_cash')
+        .select('count(*)')
+        .limit(1);
+      
+      if (checkError) {
+        console.error('[RegisterCash] Error checking register_cash table:', checkError);
+        
+        const createTableSQL = `
+          CREATE TABLE IF NOT EXISTS register_cash (
+            business_date date PRIMARY KEY,
+            starting_amount integer DEFAULT 0,
+            coins_amount integer DEFAULT 0,
+            withdrawals jsonb DEFAULT '[]'::jsonb,
+            next_day_amount integer DEFAULT 0,
+            next_day_coins integer DEFAULT 0,
+            created_at timestamptz DEFAULT now(),
+            updated_at timestamptz DEFAULT now()
+          );
+          
+          -- Enable RLS
+          ALTER TABLE register_cash ENABLE ROW LEVEL SECURITY;
+          
+          -- Create policies for anonymous access
+          CREATE POLICY "Anyone can read register_cash"
+            ON register_cash FOR SELECT
+            TO anon
+            USING (true);
+          
+          CREATE POLICY "Anyone can insert register_cash"
+            ON register_cash FOR INSERT
+            TO anon
+            WITH CHECK (true);
+          
+          CREATE POLICY "Anyone can update register_cash"
+            ON register_cash FOR UPDATE
+            TO anon
+            USING (true)
+            WITH CHECK (true);
+        `;
+        
+        const { error: createError } = await supabase.rpc('execute_sql', { query: createTableSQL });
+        if (createError) {
+          console.error('[RegisterCash] Error creating register_cash table:', createError);
+          return false;
+        }
+        
+        console.log('[RegisterCash] Successfully created register_cash table');
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('[RegisterCash] Error in ensureRegisterCashTable:', error);
+      return false;
+    }
+  };
 
   useEffect(() => {
     mountedRef.current = true;
     const businessDate = getBusinessDate();
+    
+    console.log('[RegisterCash] Component mounted, isMobile:', isMobile.current);
 
     const initializeData = async () => {
       try {
+        await ensureRegisterCashTable();
+        
+        console.log('[RegisterCash] Starting initialization with timeout');
         const timeoutPromise = new Promise((_, reject) => {
           setTimeout(() => reject(new Error('Loading timeout')), 10000);
         });
@@ -44,14 +115,32 @@ const RegisterCash: React.FC<RegisterCashProps> = ({ onBack }) => {
           loadRegisterCash(businessDate),
           timeoutPromise
         ]);
+        
+        setLoadingError(null);
       } catch (error) {
         console.error('[RegisterCash] Initialization error:', error);
+        
+        setLoadingError(error instanceof Error ? error.message : 'レジ金データの読み込みに失敗しました');
+        
         if (mountedRef.current) {
           useRegisterCashStore.setState({ 
             initialized: true, 
             isLoading: false,
             error: error instanceof Error ? error.message : 'レジ金データの読み込みに失敗しました'
           });
+          
+          if (isMobile.current && retryCount < 2) {
+            console.log('[RegisterCash] Mobile device detected, attempting recovery via resetStore');
+            setRetryCount(prev => prev + 1);
+            
+            try {
+              await resetStore();
+              console.log('[RegisterCash] Recovery successful');
+              setLoadingError(null);
+            } catch (resetError) {
+              console.error('[RegisterCash] Recovery failed:', resetError);
+            }
+          }
         }
       }
     };
@@ -61,15 +150,19 @@ const RegisterCash: React.FC<RegisterCashProps> = ({ onBack }) => {
     return () => {
       mountedRef.current = false;
     };
-  }, [loadRegisterCash]);
+  }, [loadRegisterCash, resetStore, retryCount]);
 
   const handleRefresh = async () => {
     if (isRefreshing) return;
     
     setIsRefreshing(true);
+    setLoadingError(null);
     const businessDate = getBusinessDate();
     
     try {
+      await ensureRegisterCashTable();
+      
+      console.log('[RegisterCash] Starting refresh with timeout');
       const timeoutPromise = new Promise((_, reject) => {
         setTimeout(() => reject(new Error('Loading timeout')), 10000);
       });
@@ -80,6 +173,9 @@ const RegisterCash: React.FC<RegisterCashProps> = ({ onBack }) => {
       ]);
     } catch (error) {
       console.error('[RegisterCash] Refresh error:', error);
+      
+      setLoadingError(error instanceof Error ? error.message : 'レジ金データの更新に失敗しました');
+      
       useRegisterCashStore.setState({ 
         initialized: true, 
         isLoading: false,
@@ -259,6 +355,20 @@ const RegisterCash: React.FC<RegisterCashProps> = ({ onBack }) => {
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-4 border-purple-800 border-t-transparent mb-4"></div>
             <p className="text-gray-600">読み込み中...</p>
+            {loadingError && (
+              <div className="mt-4 p-3 bg-red-100 text-red-700 rounded-md flex items-center">
+                <AlertCircle className="w-5 h-5 mr-2" />
+                <div>
+                  <p className="font-bold">エラーが発生しました</p>
+                  <p className="text-sm">{loadingError}</p>
+                  <p className="text-xs mt-2">
+                    <a href="/fix-register-cash.html" target="_blank" className="text-blue-600 underline">
+                      データベース修正ツールを開く
+                    </a>
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

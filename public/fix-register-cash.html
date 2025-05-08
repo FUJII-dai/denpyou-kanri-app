@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>レジ金テーブル修正</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    h1 {
+      color: #6b46c1;
+    }
+    button {
+      background-color: #6b46c1;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      margin-top: 20px;
+    }
+    button:hover {
+      background-color: #553c9a;
+    }
+    pre {
+      background-color: #f5f5f5;
+      padding: 15px;
+      border-radius: 4px;
+      overflow-x: auto;
+      margin-top: 20px;
+    }
+    .status {
+      margin-top: 20px;
+      padding: 10px;
+      border-radius: 4px;
+    }
+    .success {
+      background-color: #d4edda;
+      color: #155724;
+    }
+    .error {
+      background-color: #f8d7da;
+      color: #721c24;
+    }
+    .loading {
+      display: none;
+      margin-top: 20px;
+    }
+    .spinner {
+      border: 4px solid rgba(0, 0, 0, 0.1);
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      border-left-color: #6b46c1;
+      animation: spin 1s linear infinite;
+      display: inline-block;
+      vertical-align: middle;
+      margin-right: 10px;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <h1>レジ金テーブル修正ツール</h1>
+  <p>このツールは、レジ金確認ページが正常に動作するために必要なデータベーステーブルを修正します。</p>
+  <p>「修正を実行」ボタンをクリックして、データベースの修正を開始してください。</p>
+  
+  <button id="fixButton">修正を実行</button>
+  
+  <div id="loading" class="loading">
+    <div class="spinner"></div>
+    <span>処理中...</span>
+  </div>
+  
+  <div id="status" class="status" style="display: none;"></div>
+  
+  <pre id="sql">
+-- レジ金テーブルの確認と作成
+CREATE TABLE IF NOT EXISTS register_cash (
+  business_date date PRIMARY KEY,
+  starting_amount integer DEFAULT 0,
+  coins_amount integer DEFAULT 0,
+  withdrawals jsonb DEFAULT '[]'::jsonb,
+  next_day_amount integer DEFAULT 0,
+  next_day_coins integer DEFAULT 0,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+-- RLSの有効化
+ALTER TABLE register_cash ENABLE ROW LEVEL SECURITY;
+
+-- 既存のポリシーを削除
+DROP POLICY IF EXISTS "Anyone can read register_cash" ON register_cash;
+DROP POLICY IF EXISTS "Anyone can insert register_cash" ON register_cash;
+DROP POLICY IF EXISTS "Anyone can update register_cash" ON register_cash;
+
+-- 匿名アクセスのためのポリシーを作成
+CREATE POLICY "Anyone can read register_cash"
+  ON register_cash FOR SELECT
+  TO anon
+  USING (true);
+
+CREATE POLICY "Anyone can insert register_cash"
+  ON register_cash FOR INSERT
+  TO anon
+  WITH CHECK (true);
+
+CREATE POLICY "Anyone can update register_cash"
+  ON register_cash FOR UPDATE
+  TO anon
+  USING (true)
+  WITH CHECK (true);
+
+-- updated_atトリガーの作成
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+-- トリガーの作成
+DROP TRIGGER IF EXISTS update_register_cash_updated_at ON register_cash;
+CREATE TRIGGER update_register_cash_updated_at
+  BEFORE UPDATE ON register_cash
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+-- リアルタイム機能の有効化
+ALTER PUBLICATION supabase_realtime ADD TABLE register_cash;
+
+-- テストレコードの挿入
+INSERT INTO register_cash (business_date, starting_amount, coins_amount, withdrawals, next_day_amount, next_day_coins)
+VALUES (CURRENT_DATE, 0, 0, '[]'::jsonb, 0, 0)
+ON CONFLICT (business_date) DO NOTHING;
+  </pre>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const fixButton = document.getElementById('fixButton');
+      const loadingDiv = document.getElementById('loading');
+      const statusDiv = document.getElementById('status');
+      
+      fixButton.addEventListener('click', async function() {
+        // 親アプリケーションからSupabase認証情報を取得
+        const supabaseUrl = window.parent.VITE_SUPABASE_URL || '';
+        const supabaseKey = window.parent.VITE_SUPABASE_ANON_KEY || '';
+        
+        if (!supabaseUrl || !supabaseKey) {
+          statusDiv.innerHTML = `
+            <h3>エラーが発生しました</h3>
+            <p>Supabase認証情報が見つかりません。アプリケーションを再読み込みして、もう一度お試しください。</p>
+          `;
+          statusDiv.className = 'status error';
+          statusDiv.style.display = 'block';
+          return;
+        }
+        
+        // SQLクエリを取得
+        const sql = document.getElementById('sql').textContent;
+        
+        // ボタンを無効化し、ローディング表示
+        fixButton.disabled = true;
+        loadingDiv.style.display = 'block';
+        statusDiv.style.display = 'none';
+        
+        try {
+          // Supabase REST APIを使用してSQLを実行
+          const response = await fetch(`${supabaseUrl}/rest/v1/rpc/execute_sql`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': supabaseKey,
+              'Authorization': `Bearer ${supabaseKey}`
+            },
+            body: JSON.stringify({
+              query: sql
+            })
+          });
+          
+          const result = await response.json();
+          
+          // 結果を表示
+          statusDiv.innerHTML = `
+            <h3>修正が完了しました</h3>
+            <p>レジ金テーブルが正常に修正されました。アプリケーションを再読み込みして、レジ金確認ページが正常に動作するか確認してください。</p>
+            <p><a href="/" target="_blank">アプリケーションを開く</a></p>
+          `;
+          statusDiv.className = 'status success';
+          statusDiv.style.display = 'block';
+        } catch (error) {
+          // エラーを表示
+          statusDiv.innerHTML = `
+            <h3>エラーが発生しました</h3>
+            <p>${error.message}</p>
+            <p>もう一度試すか、管理者に連絡してください。</p>
+          `;
+          statusDiv.className = 'status error';
+          statusDiv.style.display = 'block';
+        } finally {
+          // ローディング表示を非表示にし、ボタンを有効化
+          loadingDiv.style.display = 'none';
+          fixButton.disabled = false;
+        }
+      });
+    });
+  </script>
+</body>
+</html>
