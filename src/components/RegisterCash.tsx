@@ -36,9 +36,23 @@ const RegisterCash: React.FC<RegisterCashProps> = ({ onBack }) => {
 
     const initializeData = async () => {
       try {
-        await loadRegisterCash(businessDate);
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Loading timeout')), 10000);
+        });
+        
+        await Promise.race([
+          loadRegisterCash(businessDate),
+          timeoutPromise
+        ]);
       } catch (error) {
         console.error('[RegisterCash] Initialization error:', error);
+        if (mountedRef.current) {
+          useRegisterCashStore.setState({ 
+            initialized: true, 
+            isLoading: false,
+            error: error instanceof Error ? error.message : 'レジ金データの読み込みに失敗しました'
+          });
+        }
       }
     };
 
@@ -56,7 +70,21 @@ const RegisterCash: React.FC<RegisterCashProps> = ({ onBack }) => {
     const businessDate = getBusinessDate();
     
     try {
-      await loadRegisterCash(businessDate);
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Loading timeout')), 10000);
+      });
+      
+      await Promise.race([
+        loadRegisterCash(businessDate),
+        timeoutPromise
+      ]);
+    } catch (error) {
+      console.error('[RegisterCash] Refresh error:', error);
+      useRegisterCashStore.setState({ 
+        initialized: true, 
+        isLoading: false,
+        error: error instanceof Error ? error.message : 'レジ金データの更新に失敗しました'
+      });
     } finally {
       setIsRefreshing(false);
     }
@@ -288,10 +316,18 @@ const RegisterCash: React.FC<RegisterCashProps> = ({ onBack }) => {
             <div>
               <label className="block text-sm text-gray-600 mb-1">開始レジ金</label>
               <input
-                type="number"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 className="border rounded-md p-2 w-full"
                 value={currentCash?.startingAmount || ''}
-                onChange={handleStartingAmountChange}
+                onChange={(e) => {
+                  const numericValue = e.target.value.replace(/[^0-9]/g, '');
+                  handleStartingAmountChange({
+                    ...e,
+                    target: { ...e.target, value: numericValue }
+                  });
+                }}
                 placeholder="0"
               />
             </div>
@@ -299,10 +335,18 @@ const RegisterCash: React.FC<RegisterCashProps> = ({ onBack }) => {
             <div>
               <label className="block text-sm text-gray-600 mb-1">小銭</label>
               <input
-                type="number"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 className="border rounded-md p-2 w-full"
                 value={currentCash?.coinsAmount || ''}
-                onChange={handleCoinsAmountChange}
+                onChange={(e) => {
+                  const numericValue = e.target.value.replace(/[^0-9]/g, '');
+                  handleCoinsAmountChange({
+                    ...e,
+                    target: { ...e.target, value: numericValue }
+                  });
+                }}
                 placeholder="0"
               />
             </div>
@@ -343,10 +387,15 @@ const RegisterCash: React.FC<RegisterCashProps> = ({ onBack }) => {
                 {withdrawalForms.map((form, index) => (
                   <div key={index} className="grid grid-cols-12 gap-2">
                     <input
-                      type="number"
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
                       className="col-span-3 border rounded-md p-2"
                       value={form.amount}
-                      onChange={(e) => handleWithdrawalChange(index, 'amount', e.target.value)}
+                      onChange={(e) => {
+                        const numericValue = e.target.value.replace(/[^0-9]/g, '');
+                        handleWithdrawalChange(index, 'amount', numericValue);
+                      }}
                       placeholder="出金額"
                     />
                     <input
@@ -390,10 +439,18 @@ const RegisterCash: React.FC<RegisterCashProps> = ({ onBack }) => {
             <div>
               <label className="block text-sm text-gray-600 mb-1">翌日レジ金</label>
               <input
-                type="number"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 className="border rounded-md p-2 w-full"
                 value={currentCash?.nextDayAmount || ''}
-                onChange={handleNextDayAmountChange}
+                onChange={(e) => {
+                  const numericValue = e.target.value.replace(/[^0-9]/g, '');
+                  handleNextDayAmountChange({
+                    ...e,
+                    target: { ...e.target, value: numericValue }
+                  });
+                }}
                 placeholder="0"
               />
             </div>
@@ -401,10 +458,18 @@ const RegisterCash: React.FC<RegisterCashProps> = ({ onBack }) => {
             <div>
               <label className="block text-sm text-gray-600 mb-1">翌日小銭</label>
               <input
-                type="number"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 className="border rounded-md p-2 w-full"
                 value={currentCash?.nextDayCoins || ''}
-                onChange={handleNextDayCoinsChange}
+                onChange={(e) => {
+                  const numericValue = e.target.value.replace(/[^0-9]/g, '');
+                  handleNextDayCoinsChange({
+                    ...e,
+                    target: { ...e.target, value: numericValue }
+                  });
+                }}
                 placeholder="0"
               />
             </div>

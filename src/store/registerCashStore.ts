@@ -35,13 +35,7 @@ interface RegisterCashState {
   _debug_log: Array<{ timestamp: Date; action: string; data: any }>;
 }
 
-const customStorage = {
-  ...createJSONStorage(() => localStorage),
-  removeItem: (name: string) => {
-    console.log('[RegisterCashStore] Removing storage:', name);
-    localStorage.removeItem(name);
-  }
-};
+const customStorage = createJSONStorage<RegisterCashState>(() => localStorage);
 
 const useRegisterCashStore = create<RegisterCashState>()(
   persist(
@@ -81,7 +75,7 @@ const useRegisterCashStore = create<RegisterCashState>()(
           });
 
           // Clear localStorage
-          customStorage.removeItem('register-cash-storage');
+          localStorage.removeItem('register-cash-storage');
 
           // Update database
           const { error } = await supabase
@@ -473,10 +467,10 @@ const useRegisterCashStore = create<RegisterCashState>()(
     {
       name: 'register-cash-storage',
       storage: customStorage,
-      partialize: (state) => ({
-        currentCash: state.currentCash,
-        initialized: state.initialized
-      })
+      partialize: (state) => {
+        const { currentCash, initialized } = state;
+        return { currentCash, initialized } as unknown as RegisterCashState;
+      }
     }
   )
 );
