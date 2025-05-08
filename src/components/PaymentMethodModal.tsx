@@ -142,11 +142,14 @@ const PaymentMethodModal: React.FC<PaymentMethodModalProps> = ({ onSelect, onClo
               全額入力 (¥{roundedTotal.toLocaleString()})
             </button>
             <input
-              type="number"
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
               className="w-full border rounded-lg p-3 mb-4"
               value={cashAmount}
               onChange={(e) => {
-                setCashAmount(e.target.value);
+                const numericValue = e.target.value.replace(/[^0-9]/g, '');
+                setCashAmount(numericValue);
                 setIsFullAmount(false);
               }}
               placeholder="現金支払い金額を入力"
