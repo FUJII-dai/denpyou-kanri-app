@@ -68,11 +68,16 @@ const Foods: React.FC<FoodsProps> = ({ order, onUpdate, disabled }) => {
           <div>
             <label className="block text-xs text-gray-700 mb-1">金額 (円)</label>
             <input 
-              type="number" 
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
               className="border rounded-md p-2 w-full text-sm" 
               placeholder="例: 500"
               value={order.tempFood?.price || ""}
-              onChange={(e) => handleTempInputChange('price', e.target.value)}
+              onChange={(e) => {
+                const numericValue = e.target.value.replace(/[^0-9]/g, '');
+                handleTempInputChange('price', numericValue);
+              }}
               disabled={disabled}
             />
           </div>
@@ -99,10 +104,15 @@ const Foods: React.FC<FoodsProps> = ({ order, onUpdate, disabled }) => {
                 <span>{food.name}</span>
                 {!disabled && (
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     className="border rounded-md p-1 w-16 text-sm"
                     value={food.quantity}
-                    onChange={(e) => handleQuantityChange(food.id, parseInt(e.target.value) || 1)}
+                    onChange={(e) => {
+                      const numericValue = e.target.value.replace(/[^0-9]/g, '');
+                      handleQuantityChange(food.id, parseInt(numericValue) || 1);
+                    }}
                     min="1"
                     disabled={disabled}
                   />

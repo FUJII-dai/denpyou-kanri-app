@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Order, Bottle } from '../types/order';
 import { formatPrice } from '../utils/price';
-import { X, Plus, UserPlus } from 'lucide-react';
+import { X } from 'lucide-react';
 import useStaffStore from '../store/staffStore';
 
 interface BottlesProps {
@@ -183,11 +183,16 @@ const Bottles: React.FC<BottlesProps> = ({ order, onUpdate, disabled }) => {
           <div>
             <label className="block text-xs text-gray-700 mb-1">金額 (円)</label>
             <input 
-              type="number" 
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
               className="border rounded-md p-2 w-full text-sm" 
               placeholder="例: 8000"
               value={order.tempBottle?.price || ""}
-              onChange={(e) => handleTempInputChange('price', e.target.value)}
+              onChange={(e) => {
+                const numericValue = e.target.value.replace(/[^0-9]/g, '');
+                handleTempInputChange('price', numericValue);
+              }}
               disabled={disabled}
             />
           </div>
