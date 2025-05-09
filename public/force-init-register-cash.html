@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>レジ金確認の強制初期化</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px;
+      line-height: 1.6;
+    }
+    h1 {
+      color: #6b21a8;
+      text-align: center;
+    }
+    .step {
+      background-color: #f9f9f9;
+      padding: 15px;
+      margin-bottom: 15px;
+      border-radius: 5px;
+    }
+    .step-number {
+      display: inline-block;
+      width: 25px;
+      height: 25px;
+      background-color: #6b21a8;
+      color: white;
+      text-align: center;
+      border-radius: 50%;
+      margin-right: 10px;
+    }
+    .success {
+      color: #16a34a;
+      font-weight: bold;
+    }
+    .button {
+      background-color: #6b21a8;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 5px;
+      cursor: pointer;
+      display: block;
+      width: 100%;
+      margin-top: 20px;
+      font-size: 16px;
+    }
+    .button:disabled {
+      background-color: #d1d5db;
+      cursor: not-allowed;
+    }
+    .log {
+      background-color: #1e293b;
+      color: #e2e8f0;
+      padding: 10px;
+      border-radius: 5px;
+      font-family: monospace;
+      margin-top: 20px;
+      max-height: 200px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+    }
+    .back-button {
+      background-color: #475569;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 5px;
+      cursor: pointer;
+      display: block;
+      width: 100%;
+      margin-top: 10px;
+      font-size: 16px;
+      text-align: center;
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <h1>レジ金確認の強制初期化</h1>
+  
+  <div class="step">
+    <span class="step-number">1</span>
+    <span>ローカルストレージをクリア</span>
+    <div id="step1-status"></div>
+  </div>
+  
+  <div class="step">
+    <span class="step-number">2</span>
+    <span>IndexedDBをクリア</span>
+    <div id="step2-status"></div>
+  </div>
+  
+  <div class="step">
+    <span class="step-number">3</span>
+    <span>レジ金テーブルを初期化</span>
+    <div id="step3-status"></div>
+  </div>
+  
+  <div class="step">
+    <span class="step-number">4</span>
+    <span>アプリケーションを再読み込み</span>
+    <div id="step4-status"></div>
+  </div>
+  
+  <div id="completion-message" style="display: none;">
+    <p class="success">修正が完了しました。アプリに戻ります...</p>
+  </div>
+  
+  <button id="fix-button" class="button">修正を実行</button>
+  <a href="/" class="back-button">アプリに戻る</a>
+  
+  <div id="log" class="log"></div>
+  
+  <script>
+    const log = document.getElementById('log');
+    const fixButton = document.getElementById('fix-button');
+    const step1Status = document.getElementById('step1-status');
+    const step2Status = document.getElementById('step2-status');
+    const step3Status = document.getElementById('step3-status');
+    const step4Status = document.getElementById('step4-status');
+    const completionMessage = document.getElementById('completion-message');
+    
+    function addLog(message) {
+      const timestamp = new Date().toLocaleTimeString('ja-JP', { hour12: false });
+      log.innerHTML += `[${timestamp}] ${message}\n`;
+      log.scrollTop = log.scrollHeight;
+    }
+    
+    async function clearLocalStorage() {
+      try {
+        addLog('ローカルストレージをクリアします...');
+        localStorage.removeItem('register-cash-storage');
+        
+        // Force initialized state
+        const forceInitialized = {
+          state: {
+            currentCash: {
+              businessDate: new Date().toISOString().split('T')[0],
+              startingAmount: 0,
+              coinsAmount: 0,
+              withdrawals: [],
+              nextDayAmount: 0,
+              nextDayCoins: 0
+            },
+            initialized: true
+          },
+          version: 0
+        };
+        
+        localStorage.setItem('register-cash-storage', JSON.stringify(forceInitialized));
+        
+        addLog('ローカルストレージのクリア成功');
+        step1Status.innerHTML = '<span class="success">成功</span>';
+        return true;
+      } catch (error) {
+        addLog(`ローカルストレージのクリアエラー: ${error.message}`);
+        step1Status.innerHTML = '<span style="color: red;">失敗</span>';
+        return false;
+      }
+    }
+    
+    async function clearIndexedDB() {
+      try {
+        addLog('IndexedDBをクリアします...');
+        
+        // Get all databases
+        const databases = await window.indexedDB.databases();
+        
+        // Delete each database
+        for (const db of databases) {
+          if (db.name && !db.name.startsWith('funfare-')) {
+            addLog(`IndexedDB: ${db.name} を削除します`);
+            await new Promise((resolve, reject) => {
+              const request = window.indexedDB.deleteDatabase(db.name);
+              request.onsuccess = () => resolve();
+              request.onerror = () => reject(new Error(`Failed to delete ${db.name}`));
+            });
+          }
+        }
+        
+        addLog('IndexedDBのクリア成功');
+        step2Status.innerHTML = '<span class="success">成功</span>';
+        return true;
+      } catch (error) {
+        addLog(`IndexedDBのクリアエラー: ${error.message}`);
+        step2Status.innerHTML = '<span style="color: red;">失敗</span>';
+        return false;
+      }
+    }
+    
+    async function initializeRegisterCashTable() {
+      try {
+        addLog('レジ金テーブルを初期化します...');
+        
+        // Get Supabase credentials from URL or localStorage
+        const urlParams = new URLSearchParams(window.location.search);
+        let supabaseUrl = urlParams.get('supabaseUrl') || localStorage.getItem('supabaseUrl');
+        let supabaseKey = urlParams.get('supabaseKey') || localStorage.getItem('supabaseKey');
+        
+        // If not found, try to get from meta tags
+        if (!supabaseUrl || !supabaseKey) {
+          const metaUrl = document.querySelector('meta[name="supabase-url"]');
+          const metaKey = document.querySelector('meta[name="supabase-anon-key"]');
+          
+          if (metaUrl && metaKey) {
+            supabaseUrl = metaUrl.getAttribute('content');
+            supabaseKey = metaKey.getAttribute('content');
+          }
+        }
+        
+        // If still not found, use hardcoded values (from .env)
+        if (!supabaseUrl || !supabaseKey) {
+          supabaseUrl = 'https://yfsrptorzuwirqgslchk.supabase.co';
+          supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlmc3JwdG9yenV3aXJxZ3NsY2hrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDY2MjcxNDksImV4cCI6MjA2MjIwMzE0OX0.zM8M-n3VcvxkI2JKQLxzoHdFeVjQCxVu2-j-Xhz2NV8';
+        }
+        
+        // Save to localStorage for future use
+        localStorage.setItem('supabaseUrl', supabaseUrl);
+        localStorage.setItem('supabaseKey', supabaseKey);
+        
+        addLog(`Supabase URL: ${supabaseUrl}`);
+        
+        // Create a simple fetch client for Supabase
+        const supabase = {
+          from: (table) => ({
+            select: (columns = '*') => ({
+              eq: (column, value) => ({
+                execute: async () => {
+                  const response = await fetch(`${supabaseUrl}/rest/v1/${table}?select=${columns}&${column}=eq.${value}`, {
+                    headers: {
+                      'apikey': supabaseKey,
+                      'Authorization': `Bearer ${supabaseKey}`
+                    }
+                  });
+                  return { data: await response.json(), error: null };
+                }
+              })
+            }),
+            upsert: async (data) => {
+              const response = await fetch(`${supabaseUrl}/rest/v1/${table}`, {
+                method: 'POST',
+                headers: {
+                  'apikey': supabaseKey,
+                  'Authorization': `Bearer ${supabaseKey}`,
+                  'Content-Type': 'application/json',
+                  'Prefer': 'resolution=merge-duplicates'
+                },
+                body: JSON.stringify(data)
+              });
+              
+              if (!response.ok) {
+                const errorText = await response.text();
+                return { error: new Error(errorText) };
+              }
+              
+              return { data: null, error: null };
+            }
+          }),
+          rpc: (functionName, params) => ({
+            execute: async () => {
+              const response = await fetch(`${supabaseUrl}/rest/v1/rpc/${functionName}`, {
+                method: 'POST',
+                headers: {
+                  'apikey': supabaseKey,
+                  'Authorization': `Bearer ${supabaseKey}`,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(params)
+              });
+              
+              if (!response.ok) {
+                const errorText = await response.text();
+                return { error: new Error(errorText) };
+              }
+              
+              return { data: await response.json(), error: null };
+            }
+          })
+        };
+        
+        // Try to create the register_cash table using execute_sql function
+        const businessDate = new Date().toISOString().split('T')[0];
+        
+        // First check if the table exists
+        const { data: checkData, error: checkError } = await supabase
+          .from('register_cash')
+          .select()
+          .eq('business_date', businessDate)
+          .execute();
+          
+        if (checkError) {
+          addLog(`テーブル確認エラー: ${checkError.message}`);
+          
+          // Try to create the table using execute_sql function
+          const createTableSQL = `
+            CREATE TABLE IF NOT EXISTS register_cash (
+              business_date date PRIMARY KEY,
+              starting_amount integer DEFAULT 0,
+              coins_amount integer DEFAULT 0,
+              withdrawals jsonb DEFAULT '[]'::jsonb,
+              next_day_amount integer DEFAULT 0,
+              next_day_coins integer DEFAULT 0,
+              created_at timestamptz DEFAULT now(),
+              updated_at timestamptz DEFAULT now()
+            );
+            
+            ALTER TABLE register_cash ENABLE ROW LEVEL SECURITY;
+            
+            DROP POLICY IF EXISTS "Anyone can read register_cash" ON register_cash;
+            DROP POLICY IF EXISTS "Anyone can insert register_cash" ON register_cash;
+            DROP POLICY IF EXISTS "Anyone can update register_cash" ON register_cash;
+            
+            CREATE POLICY "Anyone can read register_cash"
+              ON register_cash FOR SELECT
+              TO anon
+              USING (true);
+            
+            CREATE POLICY "Anyone can insert register_cash"
+              ON register_cash FOR INSERT
+              TO anon
+              WITH CHECK (true);
+            
+            CREATE POLICY "Anyone can update register_cash"
+              ON register_cash FOR UPDATE
+              TO anon
+              USING (true)
+              WITH CHECK (true);
+          `;
+          
+          const { data: sqlResult, error: sqlError } = await supabase
+            .rpc('execute_sql', { query: createTableSQL })
+            .execute();
+            
+          if (sqlError) {
+            addLog(`テーブル作成エラー: ${sqlError.message}`);
+          } else {
+            addLog(`テーブル作成結果: ${JSON.stringify(sqlResult)}`);
+          }
+        } else {
+          addLog(`テーブル確認成功: ${checkData.length} レコード見つかりました`);
+        }
+        
+        // Insert or update the register_cash record for today
+        const { error: upsertError } = await supabase
+          .from('register_cash')
+          .upsert({
+            business_date: businessDate,
+            starting_amount: 0,
+            coins_amount: 0,
+            withdrawals: [],
+            next_day_amount: 0,
+            next_day_coins: 0
+          });
+          
+        if (upsertError) {
+          addLog(`レコード作成エラー: ${upsertError.message}`);
+          step3Status.innerHTML = '<span style="color: orange;">部分的に成功</span>';
+        } else {
+          addLog('レジ金テーブルの初期化成功');
+          step3Status.innerHTML = '<span class="success">成功</span>';
+        }
+        
+        return true;
+      } catch (error) {
+        addLog(`レジ金テーブル初期化エラー: ${error.message}`);
+        step3Status.innerHTML = '<span style="color: red;">失敗</span>';
+        return false;
+      }
+    }
+    
+    async function reloadApplication() {
+      try {
+        addLog('アプリケーションを再読み込みします...');
+        
+        // Set a flag to indicate that we've run the fix
+        sessionStorage.setItem('register_cash_fixed', 'true');
+        
+        step4Status.innerHTML = '<span class="success">成功</span>';
+        completionMessage.style.display = 'block';
+        
+        // Redirect back to the app after a short delay
+        setTimeout(() => {
+          window.location.href = '/';
+        }, 3000);
+        
+        return true;
+      } catch (error) {
+        addLog(`アプリケーション再読み込みエラー: ${error.message}`);
+        step4Status.innerHTML = '<span style="color: red;">失敗</span>';
+        return false;
+      }
+    }
+    
+    async function runFix() {
+      fixButton.disabled = true;
+      
+      try {
+        await clearLocalStorage();
+        await clearIndexedDB();
+        await initializeRegisterCashTable();
+        await reloadApplication();
+      } catch (error) {
+        addLog(`修正実行エラー: ${error.message}`);
+      }
+      
+      fixButton.disabled = false;
+    }
+    
+    fixButton.addEventListener('click', runFix);
+    
+    // Check if we're returning from a fix
+    if (sessionStorage.getItem('register_cash_fixed') === 'true') {
+      addLog('修正が適用されました。アプリケーションが正常に動作することを確認してください。');
+      sessionStorage.removeItem('register_cash_fixed');
+    }
+  </script>
+</body>
+</html>

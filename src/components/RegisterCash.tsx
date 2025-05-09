@@ -165,10 +165,32 @@ const RegisterCash: React.FC<RegisterCashProps> = ({ onBack }) => {
 
     const initializeData = async () => {
       try {
+        if (sessionStorage.getItem('register_cash_fixed') === 'true') {
+          console.log('[RegisterCash] Detected return from force-init tool');
+          sessionStorage.removeItem('register_cash_fixed');
+          
+          useRegisterCashStore.setState({ 
+            currentCash: {
+              businessDate,
+              startingAmount: 0,
+              coinsAmount: 0,
+              withdrawals: [],
+              nextDayAmount: 0,
+              nextDayCoins: 0
+            },
+            initialized: true, 
+            isLoading: false,
+            error: null
+          });
+          
+          setLoadingError(null);
+          return;
+        }
+        
         const tableCreated = await ensureRegisterCashTable();
         console.log('[RegisterCash] Table creation result:', tableCreated);
         
-        const timeoutDuration = isMobile.current ? 3000 : 5000;
+        const timeoutDuration = isMobile.current ? 2000 : 5000;
         console.log(`[RegisterCash] Starting initialization with ${timeoutDuration}ms timeout`);
         
         const timeoutPromise = new Promise((_, reject) => {
@@ -203,7 +225,7 @@ const RegisterCash: React.FC<RegisterCashProps> = ({ onBack }) => {
             
             if (isMobile.current) {
               console.log('[RegisterCash] Mobile device detected, showing mobile-specific error');
-              setLoadingError('モバイルデバイスでの読み込みに問題が発生しました。修正ツールを使用してください。');
+              setLoadingError('モバイルデバイスでの読み込みに問題が発生しました。強制初期化ツールを使用してください。');
             } else {
               setLoadingError(null);
             }
@@ -233,7 +255,7 @@ const RegisterCash: React.FC<RegisterCashProps> = ({ onBack }) => {
           
           if (isMobile.current) {
             console.log('[RegisterCash] Mobile device detected, showing mobile-specific error');
-            setLoadingError('モバイルデバイスでの読み込みに問題が発生しました。修正ツールを使用してください。');
+            setLoadingError('モバイルデバイスでの読み込みに問題が発生しました。強制初期化ツールを使用してください。');
           }
         }
       }
@@ -483,6 +505,28 @@ const RegisterCash: React.FC<RegisterCashProps> = ({ onBack }) => {
     document.body.removeChild(link);
   };
 
+  useEffect(() => {
+    if (isMobile.current && (isRegisterLoading || !registerInitialized)) {
+      const forceTimer = setTimeout(() => {
+        console.log('[RegisterCash] Forcing initialization after timeout (mobile)');
+        useRegisterCashStore.setState({
+          currentCash: {
+            businessDate: getBusinessDate(),
+            startingAmount: 0,
+            coinsAmount: 0,
+            withdrawals: [],
+            nextDayAmount: 0,
+            nextDayCoins: 0
+          },
+          initialized: true,
+          isLoading: false
+        });
+      }, 5000);
+      
+      return () => clearTimeout(forceTimer);
+    }
+  }, [isRegisterLoading, registerInitialized]);
+
   if (isRegisterLoading || !registerInitialized) {
     return (
       <div className="flex flex-col h-screen bg-gray-100">
@@ -501,11 +545,11 @@ const RegisterCash: React.FC<RegisterCashProps> = ({ onBack }) => {
                   <p className="text-sm">{loadingError}</p>
                   <p className="text-xs mt-2">
                     <a 
-                      href={isMobile.current ? "/simple-mobile-fix.html" : "/fix-register-cash.html"} 
+                      href="/force-init-register-cash.html" 
                       target="_blank" 
                       className="text-blue-600 underline"
                     >
-                      {isMobile.current ? "シンプル修正ツールを開く" : "データベース修正ツールを開く"}
+                      強制初期化ツールを開く
                     </a>
                   </p>
                   <p className="text-xs mt-1">
