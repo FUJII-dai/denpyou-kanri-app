@@ -32,19 +32,31 @@ const RegisterCash: React.FC<RegisterCashProps> = ({ onBack }) => {
 
   const [forceInitialized, setForceInitialized] = useState(false);
   const [showError, setShowError] = useState(false);
+  const [inputEnabled, setInputEnabled] = useState(false);
+  
+  useEffect(() => {
+    const fromFixTool = sessionStorage.getItem('register-cash-force-init') === 'true';
+    if (fromFixTool) {
+      console.log('[RegisterCash] Returning from fix tool, forcing initialization');
+      setForceInitialized(true);
+      setInputEnabled(true);
+      sessionStorage.removeItem('register-cash-force-init');
+    }
+  }, []);
   
   useEffect(() => {
     mountedRef.current = true;
     const businessDate = getBusinessDate();
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     
-    const timeoutDuration = isMobile ? 3000 : 5000; // 3 seconds for mobile, 5 for desktop
+    const timeoutDuration = isMobile ? 2000 : 5000; // 2 seconds for mobile, 5 for desktop
     
     console.log(`[RegisterCash] Device type: ${isMobile ? 'Mobile' : 'Desktop'}, timeout: ${timeoutDuration}ms`);
 
     const initializeData = async () => {
       try {
         await loadRegisterCash(businessDate);
+        setInputEnabled(true);
       } catch (error) {
         console.error('[RegisterCash] Initialization error:', error);
       }
@@ -59,6 +71,7 @@ const RegisterCash: React.FC<RegisterCashProps> = ({ onBack }) => {
     const timeoutId = setTimeout(() => {
       console.log('[RegisterCash] Forcing initialization due to timeout');
       setForceInitialized(true);
+      setInputEnabled(true);
     }, timeoutDuration);
 
     return () => {
@@ -244,7 +257,8 @@ const RegisterCash: React.FC<RegisterCashProps> = ({ onBack }) => {
     isRegisterLoading, 
     registerInitialized, 
     forceInitialized,
-    showError
+    showError,
+    inputEnabled
   });
   
   if ((isRegisterLoading || !registerInitialized) && !forceInitialized) {
@@ -265,7 +279,7 @@ const RegisterCash: React.FC<RegisterCashProps> = ({ onBack }) => {
                   データベースの接続に問題がある可能性があります。
                 </p>
                 <a 
-                  href="/force-init-register-cash.html" 
+                  href="/register-cash-direct-fix.html" 
                   className="mt-3 inline-block bg-blue-600 text-white px-4 py-2 rounded-md"
                 >
                   修正ツールを開く

@@ -421,40 +421,92 @@ const useRegisterCashStore = create<RegisterCashState>()(
           console.log('[RegisterCashStore] Loading register cash for date:', date);
           set({ isLoading: true, error: null });
 
-          const { data, error } = await supabase
-            .from('register_cash')
-            .select('*')
-            .eq('business_date', date)
-            .maybeSingle();
+          try {
+            const { data, error } = await supabase
+              .from('register_cash')
+              .select('*')
+              .eq('business_date', date)
+              .maybeSingle();
 
-          if (error && error.code !== 'PGRST116') {
-            console.error('[RegisterCashStore] Error loading register cash:', error);
-            throw error;
+            if (error && error.code !== 'PGRST116') {
+              console.error('[RegisterCashStore] Error loading register cash:', error);
+              
+              const registerCash: RegisterCash = {
+                businessDate: date,
+                startingAmount: 0,
+                coinsAmount: 0,
+                withdrawals: [],
+                nextDayAmount: 0,
+                nextDayCoins: 0
+              };
+
+              console.log('[RegisterCashStore] Using default register cash due to error:', registerCash);
+              set(state => ({
+                currentCash: registerCash,
+                initialized: true,
+                isLoading: false,
+                _debug_log: [
+                  ...state._debug_log,
+                  {
+                    timestamp: new Date(),
+                    action: 'load_register_cash_default',
+                    data: registerCash
+                  }
+                ]
+              }));
+              return;
+            }
+
+            const registerCash: RegisterCash = {
+              businessDate: date,
+              startingAmount: data?.starting_amount || 0,
+              coinsAmount: data?.coins_amount || 0,
+              withdrawals: (data?.withdrawals as unknown as Withdrawal[]) || [],
+              nextDayAmount: data?.next_day_amount || 0,
+              nextDayCoins: data?.next_day_coins || 0
+            };
+
+            console.log('[RegisterCashStore] Register cash loaded:', registerCash);
+            set(state => ({
+              currentCash: registerCash,
+              initialized: true,
+              isLoading: false,
+              _debug_log: [
+                ...state._debug_log,
+                {
+                  timestamp: new Date(),
+                  action: 'load_register_cash',
+                  data: registerCash
+                }
+              ]
+            }));
+          } catch (error) {
+            console.error('[RegisterCashStore] Failed to load register cash:', error);
+            
+            const registerCash: RegisterCash = {
+              businessDate: date,
+              startingAmount: 0,
+              coinsAmount: 0,
+              withdrawals: [],
+              nextDayAmount: 0,
+              nextDayCoins: 0
+            };
+
+            console.log('[RegisterCashStore] Using default register cash due to error:', registerCash);
+            set(state => ({
+              currentCash: registerCash,
+              initialized: true,
+              isLoading: false,
+              _debug_log: [
+                ...state._debug_log,
+                {
+                  timestamp: new Date(),
+                  action: 'load_register_cash_default',
+                  data: registerCash
+                }
+              ]
+            }));
           }
-
-          const registerCash: RegisterCash = {
-            businessDate: date,
-            startingAmount: data?.starting_amount || 0,
-            coinsAmount: data?.coins_amount || 0,
-            withdrawals: (data?.withdrawals as unknown as Withdrawal[]) || [],
-            nextDayAmount: data?.next_day_amount || 0,
-            nextDayCoins: data?.next_day_coins || 0
-          };
-
-          console.log('[RegisterCashStore] Register cash loaded:', registerCash);
-          set(state => ({
-            currentCash: registerCash,
-            initialized: true,
-            isLoading: false,
-            _debug_log: [
-              ...state._debug_log,
-              {
-                timestamp: new Date(),
-                action: 'load_register_cash',
-                data: registerCash
-              }
-            ]
-          }));
         } catch (error) {
           console.error('[RegisterCashStore] Failed to load register cash:', error);
           set({ 
