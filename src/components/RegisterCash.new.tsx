@@ -178,7 +178,7 @@ const RegisterCash: React.FC = () => {
                   データベースの接続に問題がある可能性があります。
                 </p>
                 <a 
-                  href="/register-cash-initializer.html" 
+                  href="/register_cash_setup_direct.html" 
                   className="mt-3 inline-block bg-blue-600 text-white px-4 py-2 rounded-md"
                 >
                   修正ツールを開く
@@ -211,7 +211,7 @@ const RegisterCash: React.FC = () => {
                 再読み込み
               </button>
               <a 
-                href="/register-cash-initializer.html" 
+                href="/register_cash_setup_direct.html" 
                 className="bg-green-600 text-white px-4 py-2 rounded-md"
               >
                 修正ツールを開く
