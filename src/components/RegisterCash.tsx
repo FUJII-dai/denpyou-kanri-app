@@ -144,6 +144,20 @@ const RegisterCash: React.FC<RegisterCashProps> = ({ onBack }) => {
   };
 
   useEffect(() => {
+    const checkMobile = () => {
+      isMobile.current = window.innerWidth < 768;
+      console.log('[RegisterCash] Mobile detection:', isMobile.current, 'width:', window.innerWidth);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    
+    return () => {
+      window.removeEventListener('resize', checkMobile);
+    };
+  }, []);
+
+  useEffect(() => {
     mountedRef.current = true;
     const businessDate = getBusinessDate();
     
@@ -151,11 +165,14 @@ const RegisterCash: React.FC<RegisterCashProps> = ({ onBack }) => {
 
     const initializeData = async () => {
       try {
-        await ensureRegisterCashTable();
+        const tableCreated = await ensureRegisterCashTable();
+        console.log('[RegisterCash] Table creation result:', tableCreated);
         
-        console.log('[RegisterCash] Starting initialization with timeout');
+        const timeoutDuration = isMobile.current ? 3000 : 5000;
+        console.log(`[RegisterCash] Starting initialization with ${timeoutDuration}ms timeout`);
+        
         const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('Loading timeout')), 5000); // Reduced timeout for faster recovery
+          setTimeout(() => reject(new Error('Loading timeout')), timeoutDuration);
         });
         
         try {
@@ -168,7 +185,8 @@ const RegisterCash: React.FC<RegisterCashProps> = ({ onBack }) => {
           console.error('[RegisterCash] Load error:', loadError);
           
           if (mountedRef.current) {
-            console.log('[RegisterCash] Forcing initialization to complete');
+            console.log('[RegisterCash] Forcing initialization to complete after timeout');
+            
             useRegisterCashStore.setState({ 
               currentCash: {
                 businessDate,
@@ -183,7 +201,12 @@ const RegisterCash: React.FC<RegisterCashProps> = ({ onBack }) => {
               error: null
             });
             
-            setLoadingError(null);
+            if (isMobile.current) {
+              console.log('[RegisterCash] Mobile device detected, showing mobile-specific error');
+              setLoadingError('モバイルデバイスでの読み込みに問題が発生しました。修正ツールを使用してください。');
+            } else {
+              setLoadingError(null);
+            }
           }
         }
       } catch (error) {
@@ -193,6 +216,7 @@ const RegisterCash: React.FC<RegisterCashProps> = ({ onBack }) => {
         
         if (mountedRef.current) {
           console.log('[RegisterCash] Forcing initialization after error');
+          
           useRegisterCashStore.setState({ 
             currentCash: {
               businessDate,
@@ -230,11 +254,14 @@ const RegisterCash: React.FC<RegisterCashProps> = ({ onBack }) => {
     const businessDate = getBusinessDate();
     
     try {
-      await ensureRegisterCashTable();
+      const tableCreated = await ensureRegisterCashTable();
+      console.log('[RegisterCash] Table creation result on refresh:', tableCreated);
       
-      console.log('[RegisterCash] Starting refresh with timeout');
+      const timeoutDuration = isMobile.current ? 3000 : 5000;
+      console.log(`[RegisterCash] Starting refresh with ${timeoutDuration}ms timeout`);
+      
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Loading timeout')), 5000); // Reduced timeout
+        setTimeout(() => reject(new Error('Loading timeout')), timeoutDuration);
       });
       
       try {
@@ -246,7 +273,8 @@ const RegisterCash: React.FC<RegisterCashProps> = ({ onBack }) => {
       } catch (loadError) {
         console.error('[RegisterCash] Refresh load error:', loadError);
         
-        console.log('[RegisterCash] Forcing refresh to complete');
+        console.log('[RegisterCash] Forcing refresh to complete after timeout');
+        
         useRegisterCashStore.setState({ 
           currentCash: {
             businessDate,
@@ -260,16 +288,18 @@ const RegisterCash: React.FC<RegisterCashProps> = ({ onBack }) => {
           isLoading: false,
           error: null
         });
+        
+        if (isMobile.current) {
+          console.log('[RegisterCash] Mobile device detected, showing mobile-specific error on refresh');
+          setLoadingError('モバイルデバイスでの更新に問題が発生しました。修正ツールを使用してください。');
+        } else {
+          setLoadingError(null);
+        }
       }
     } catch (error) {
       console.error('[RegisterCash] Refresh error:', error);
       
-      if (isMobile.current) {
-        console.log('[RegisterCash] Mobile device detected, showing mobile-specific error');
-        setLoadingError('モバイルデバイスでの更新に問題が発生しました。修正ツールを使用してください。');
-      } else {
-        setLoadingError(error instanceof Error ? error.message : 'レジ金データの更新に失敗しました');
-      }
+      setLoadingError(error instanceof Error ? error.message : 'レジ金データの更新に失敗しました');
       
       useRegisterCashStore.setState({ 
         currentCash: {
@@ -284,6 +314,11 @@ const RegisterCash: React.FC<RegisterCashProps> = ({ onBack }) => {
         isLoading: false,
         error: null
       });
+      
+      if (isMobile.current) {
+        console.log('[RegisterCash] Mobile device detected, showing mobile-specific error on refresh');
+        setLoadingError('モバイルデバイスでの更新に問題が発生しました。修正ツールを使用してください。');
+      }
     } finally {
       setIsRefreshing(false);
     }
