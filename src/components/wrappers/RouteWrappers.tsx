@@ -73,11 +73,5 @@ export const StaffManagementWrapper: React.FC = () => {
 };
 
 export const RegisterCashWrapper: React.FC = () => {
-  const navigate = useNavigate();
-  
-  const handleBack = () => {
-    navigate('/');
-  };
-  
   return <RegisterCash />;
 };
