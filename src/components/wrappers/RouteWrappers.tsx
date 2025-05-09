@@ -16,7 +16,17 @@ export const DashboardWrapper: React.FC = () => {
   const navigate = useNavigate();
   
   const handleScreenChange = (screen: string) => {
-    navigate(`/${screen}`);
+    const routeMap: Record<string, string> = {
+      'newOrder': '/new-order',
+      'activeOrders': '/active-orders',
+      'completedOrders': '/completed-orders',
+      'dailySales': '/daily-sales',
+      'staff': '/staff-management',
+      'register-cash': '/register-cash',
+      'dashboard': '/'
+    };
+    
+    navigate(routeMap[screen] || '/');
   };
   
   return <Dashboard onScreenChange={handleScreenChange} />;
