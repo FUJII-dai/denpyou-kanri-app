@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Register Cash テーブル作成ツール</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      line-height: 1.6;
+      color: #333;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    h1 {
+      color: #4a148c;
+      border-bottom: 2px solid #4a148c;
+      padding-bottom: 10px;
+    }
+    .card {
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    button {
+      background: #4a148c;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      margin-top: 10px;
+    }
+    button:hover {
+      background: #6a1b9a;
+    }
+    button:disabled {
+      background: #cccccc;
+      cursor: not-allowed;
+    }
+    .success {
+      background: #e8f5e9;
+      border-left: 4px solid #4caf50;
+      padding: 10px;
+      margin-top: 10px;
+    }
+    .error {
+      background: #ffebee;
+      border-left: 4px solid #f44336;
+      padding: 10px;
+      margin-top: 10px;
+    }
+    pre {
+      background: #f5f5f5;
+      padding: 10px;
+      border-radius: 4px;
+      overflow-x: auto;
+    }
+    #status {
+      margin-top: 20px;
+    }
+    .hidden {
+      display: none;
+    }
+    .loader {
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #4a148c;
+      border-radius: 50%;
+      width: 20px;
+      height: 20px;
+      animation: spin 2s linear infinite;
+      display: inline-block;
+      margin-right: 10px;
+      vertical-align: middle;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <h1>Register Cash テーブル作成ツール</h1>
+  
+  <div class="card">
+    <h2>問題</h2>
+    <p>アプリケーションが <code>register_cash</code> テーブルにアクセスしようとしていますが、このテーブルがデータベースに存在しません。</p>
+    <p>エラーメッセージ: <code>relation "public.register_cash" does not exist</code></p>
+  </div>
+
+  <div class="card">
+    <h2>解決策</h2>
+    <p>このツールは <code>register_cash</code> テーブルを作成し、必要な権限を設定します。</p>
+    <p>以下のボタンをクリックして、テーブルを作成してください。</p>
+    
+    <button id="createTableBtn">テーブルを作成</button>
+    <button id="initializeDataBtn" disabled>初期データを作成</button>
+    
+    <div id="status" class="hidden"></div>
+  </div>
+
+  <div class="card">
+    <h2>実行されるSQL</h2>
+    <pre id="sqlContent">-- Loading SQL...</pre>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      const createTableBtn = document.getElementById('createTableBtn');
+      const initializeDataBtn = document.getElementById('initializeDataBtn');
+      const status = document.getElementById('status');
+      const sqlContent = document.getElementById('sqlContent');
+      
+      // Load SQL content
+      try {
+        const response = await fetch('create-register-cash-table.sql');
+        const sql = await response.text();
+        sqlContent.textContent = sql;
+      } catch (error) {
+        sqlContent.textContent = 'Error loading SQL: ' + error.message;
+      }
+      
+      // Get Supabase credentials from localStorage
+      const supabaseUrl = localStorage.getItem('supabaseUrl') || '';
+      const supabaseKey = localStorage.getItem('supabaseKey') || '';
+      
+      if (!supabaseUrl || !supabaseKey) {
+        // Try to get from .env variables
+        try {
+          const envResponse = await fetch('/.env');
+          const envText = await envResponse.text();
+          
+          const urlMatch = envText.match(/VITE_SUPABASE_URL=(.+)/);
+          const keyMatch = envText.match(/VITE_SUPABASE_ANON_KEY=(.+)/);
+          
+          if (urlMatch && urlMatch[1]) {
+            localStorage.setItem('supabaseUrl', urlMatch[1]);
+          }
+          
+          if (keyMatch && keyMatch[1]) {
+            localStorage.setItem('supabaseKey', keyMatch[1]);
+          }
+        } catch (error) {
+          console.error('Error loading .env file:', error);
+        }
+      }
+      
+      createTableBtn.addEventListener('click', async () => {
+        status.classList.remove('hidden');
+        status.innerHTML = '<div class="loader"></div> テーブルを作成中...';
+        
+        try {
+          const supabaseUrl = localStorage.getItem('supabaseUrl');
+          const supabaseKey = localStorage.getItem('supabaseKey');
+          
+          if (!supabaseUrl || !supabaseKey) {
+            throw new Error('Supabase認証情報が見つかりません。');
+          }
+          
+          const response = await fetch(`${supabaseUrl}/rest/v1/`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': supabaseKey,
+              'Authorization': `Bearer ${supabaseKey}`,
+              'Prefer': 'resolution=merge-duplicates'
+            },
+            body: JSON.stringify({
+              query: sqlContent.textContent
+            })
+          });
+          
+          if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`テーブル作成に失敗しました: ${errorText}`);
+          }
+          
+          status.innerHTML = '<div class="success">テーブルが正常に作成されました！</div>';
+          initializeDataBtn.disabled = false;
+          
+          // Set flag in sessionStorage to force initialization
+          sessionStorage.setItem('register-cash-force-init', 'true');
+          
+        } catch (error) {
+          status.innerHTML = `<div class="error">エラー: ${error.message}</div>`;
+          console.error('Error creating table:', error);
+          
+          // Try alternative method
+          status.innerHTML += `<div>代替方法を試行中...</div>`;
+          
+          try {
+            const sql = sqlContent.textContent;
+            const supabaseUrl = localStorage.getItem('supabaseUrl');
+            const supabaseKey = localStorage.getItem('supabaseKey');
+            
+            // Use Supabase SQL API
+            const response = await fetch(`${supabaseUrl}/rest/v1/rpc/execute_sql`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'apikey': supabaseKey,
+                'Authorization': `Bearer ${supabaseKey}`
+              },
+              body: JSON.stringify({
+                sql: sql
+              })
+            });
+            
+            if (!response.ok) {
+              const errorText = await response.text();
+              throw new Error(`代替方法でのテーブル作成に失敗しました: ${errorText}`);
+            }
+            
+            status.innerHTML = '<div class="success">テーブルが正常に作成されました！</div>';
+            initializeDataBtn.disabled = false;
+            
+            // Set flag in sessionStorage to force initialization
+            sessionStorage.setItem('register-cash-force-init', 'true');
+            
+          } catch (altError) {
+            status.innerHTML += `<div class="error">代替方法でのエラー: ${altError.message}</div>`;
+            console.error('Error with alternative method:', altError);
+          }
+        }
+      });
+      
+      initializeDataBtn.addEventListener('click', async () => {
+        status.classList.remove('hidden');
+        status.innerHTML = '<div class="loader"></div> 初期データを作成中...';
+        
+        try {
+          const supabaseUrl = localStorage.getItem('supabaseUrl');
+          const supabaseKey = localStorage.getItem('supabaseKey');
+          
+          if (!supabaseUrl || !supabaseKey) {
+            throw new Error('Supabase認証情報が見つかりません。');
+          }
+          
+          // Get current business date
+          const now = new Date();
+          const businessDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+          
+          // Create initial record
+          const response = await fetch(`${supabaseUrl}/rest/v1/register_cash`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': supabaseKey,
+              'Authorization': `Bearer ${supabaseKey}`,
+              'Prefer': 'return=representation'
+            },
+            body: JSON.stringify({
+              business_date: businessDate,
+              starting_amount: 0,
+              coins_amount: 0,
+              next_day_amount: 0,
+              next_day_coins: 0,
+              withdrawals: []
+            })
+          });
+          
+          if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`初期データ作成に失敗しました: ${errorText}`);
+          }
+          
+          status.innerHTML = '<div class="success">初期データが正常に作成されました！</div>';
+          status.innerHTML += '<div class="success">アプリケーションを再読み込みして、レジ金確認ページを開いてください。</div>';
+          
+          // Set flag in sessionStorage to force initialization
+          sessionStorage.setItem('register-cash-force-init', 'true');
+          
+          // Add reload button
+          const reloadBtn = document.createElement('button');
+          reloadBtn.textContent = 'アプリケーションを再読み込み';
+          reloadBtn.addEventListener('click', () => {
+            window.location.href = '/';
+          });
+          status.appendChild(reloadBtn);
+          
+        } catch (error) {
+          status.innerHTML = `<div class="error">エラー: ${error.message}</div>`;
+          console.error('Error initializing data:', error);
+        }
+      });
+    });
+  </script>
+</body>
+</html>
