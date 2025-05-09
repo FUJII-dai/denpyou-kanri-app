@@ -31,10 +31,16 @@ const RegisterCash: React.FC<RegisterCashProps> = ({ onBack }) => {
   const mountedRef = useRef(false);
 
   const [forceInitialized, setForceInitialized] = useState(false);
+  const [showError, setShowError] = useState(false);
   
   useEffect(() => {
     mountedRef.current = true;
     const businessDate = getBusinessDate();
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    const timeoutDuration = isMobile ? 3000 : 5000; // 3 seconds for mobile, 5 for desktop
+    
+    console.log(`[RegisterCash] Device type: ${isMobile ? 'Mobile' : 'Desktop'}, timeout: ${timeoutDuration}ms`);
 
     const initializeData = async () => {
       try {
@@ -46,14 +52,19 @@ const RegisterCash: React.FC<RegisterCashProps> = ({ onBack }) => {
 
     initializeData();
 
+    const errorTimeoutId = setTimeout(() => {
+      setShowError(true);
+    }, 2000);
+
     const timeoutId = setTimeout(() => {
       console.log('[RegisterCash] Forcing initialization due to timeout');
       setForceInitialized(true);
-    }, 5000);
+    }, timeoutDuration);
 
     return () => {
       mountedRef.current = false;
       clearTimeout(timeoutId);
+      clearTimeout(errorTimeoutId);
     };
   }, [loadRegisterCash]);
 
@@ -232,7 +243,8 @@ const RegisterCash: React.FC<RegisterCashProps> = ({ onBack }) => {
   console.log('[RegisterCash] Loading state:', { 
     isRegisterLoading, 
     registerInitialized, 
-    forceInitialized 
+    forceInitialized,
+    showError
   });
   
   if ((isRegisterLoading || !registerInitialized) && !forceInitialized) {
@@ -245,6 +257,21 @@ const RegisterCash: React.FC<RegisterCashProps> = ({ onBack }) => {
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-4 border-purple-800 border-t-transparent mb-4"></div>
             <p className="text-gray-600">読み込み中...</p>
+            
+            {showError && (
+              <div className="mt-4 p-4 bg-yellow-100 rounded-md">
+                <p className="text-red-600 font-bold">読み込みに時間がかかっています</p>
+                <p className="text-gray-700 mt-2">
+                  データベースの接続に問題がある可能性があります。
+                </p>
+                <a 
+                  href="/force-init-register-cash.html" 
+                  className="mt-3 inline-block bg-blue-600 text-white px-4 py-2 rounded-md"
+                >
+                  修正ツールを開く
+                </a>
+              </div>
+            )}
           </div>
         </div>
       </div>

@@ -119,14 +119,6 @@ export const clearSupabaseCache = async () => {
 
     const clearSupabaseState = async () => {
       try {
-        console.log('Resetting Supabase REST client...');
-        // Supabaseのキャッシュをクリア
-        await supabase.rest.reset();
-      } catch (e) {
-        console.warn('Supabase cache reset failed:', e);
-      }
-
-      try {
         console.log('Removing all Supabase channels...');
         // すべてのチャネルを削除
         await supabase.removeAllChannels();
@@ -146,7 +138,6 @@ export const clearSupabaseCache = async () => {
     // 接続を再確立
     try {
       await supabase.removeAllChannels();
-      await supabase.rest.reset();
       console.log('Supabase connection reset successful');
     } catch (e) {
       console.warn('Supabase connection reset failed:', e);
