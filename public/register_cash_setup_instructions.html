@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Register Cash テーブル設定手順</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      line-height: 1.6;
+      color: #333;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    h1, h2, h3 {
+      color: #4a148c;
+    }
+    h1 {
+      border-bottom: 2px solid #4a148c;
+      padding-bottom: 10px;
+    }
+    .card {
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    pre {
+      background: #f5f5f5;
+      padding: 15px;
+      border-radius: 4px;
+      overflow-x: auto;
+      border-left: 4px solid #4a148c;
+    }
+    .step {
+      background: #f9f9f9;
+      border-left: 4px solid #4a148c;
+      padding: 15px;
+      margin-bottom: 15px;
+    }
+    .step-number {
+      display: inline-block;
+      background: #4a148c;
+      color: white;
+      width: 24px;
+      height: 24px;
+      text-align: center;
+      border-radius: 50%;
+      margin-right: 10px;
+    }
+    img {
+      max-width: 100%;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      margin: 10px 0;
+    }
+    .button {
+      background: #4a148c;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      text-decoration: none;
+      display: inline-block;
+      margin-top: 10px;
+    }
+    .button:hover {
+      background: #6a1b9a;
+    }
+    .copy-button {
+      background: #4a148c;
+      color: white;
+      border: none;
+      padding: 5px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      float: right;
+    }
+    .copy-button:hover {
+      background: #6a1b9a;
+    }
+    .success {
+      background: #e8f5e9;
+      border-left: 4px solid #4caf50;
+      padding: 15px;
+      margin: 15px 0;
+    }
+  </style>
+</head>
+<body>
+  <h1>Register Cash テーブル設定手順</h1>
+  
+  <div class="card">
+    <h2>問題</h2>
+    <p>アプリケーションが <code>register_cash</code> テーブルにアクセスしようとしていますが、このテーブルがデータベースに存在しません。</p>
+    <p>エラーメッセージ: <code>relation "public.register_cash" does not exist</code></p>
+  </div>
+
+  <div class="card">
+    <h2>解決方法</h2>
+    <p>Supabaseダッシュボードで直接SQLを実行して、<code>register_cash</code>テーブルを作成する必要があります。</p>
+    
+    <div class="step">
+      <h3><span class="step-number">1</span> Supabaseダッシュボードにログイン</h3>
+      <p><a href="https://app.supabase.com" target="_blank" class="button">Supabaseダッシュボードを開く</a></p>
+      <p>プロジェクト「yfsrptorzuwirqgslchk」を選択してください。</p>
+    </div>
+    
+    <div class="step">
+      <h3><span class="step-number">2</span> SQL Editorを開く</h3>
+      <p>左側のメニューから「SQL Editor」を選択してください。</p>
+    </div>
+    
+    <div class="step">
+      <h3><span class="step-number">3</span> 新しいSQLクエリを作成</h3>
+      <p>「+ New Query」ボタンをクリックして、新しいSQLクエリを作成してください。</p>
+    </div>
+    
+    <div class="step">
+      <h3><span class="step-number">4</span> SQLスクリプトをコピー＆ペースト</h3>
+      <p>以下のSQLスクリプトをコピーして、エディタに貼り付けてください：</p>
+      
+      <div style="position: relative;">
+        <button class="copy-button" onclick="copySQL()">コピー</button>
+        <pre id="sql-script">-- レジ金確認テーブル作成スクリプト
+-- Supabaseダッシュボードの「SQL Editor」で実行してください
+
+-- テーブル作成
+CREATE TABLE IF NOT EXISTS register_cash (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  business_date text NOT NULL UNIQUE,
+  starting_amount integer DEFAULT 0,
+  coins_amount integer DEFAULT 0,
+  next_day_amount integer DEFAULT 0,
+  next_day_coins integer DEFAULT 0,
+  withdrawals jsonb DEFAULT '[]'::jsonb,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+-- 行レベルセキュリティの有効化
+ALTER TABLE register_cash ENABLE ROW LEVEL SECURITY;
+
+-- ポリシーの作成
+CREATE POLICY "Users can read all register_cash"
+  ON register_cash
+  FOR SELECT
+  TO authenticated
+  USING (true);
+
+CREATE POLICY "Users can insert register_cash"
+  ON register_cash
+  FOR INSERT
+  TO authenticated
+  WITH CHECK (true);
+
+CREATE POLICY "Users can update register_cash"
+  ON register_cash
+  FOR UPDATE
+  TO authenticated
+  USING (true)
+  WITH CHECK (true);
+
+-- 更新日時トリガーの作成
+CREATE OR REPLACE FUNCTION update_register_cash_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+CREATE TRIGGER update_register_cash_updated_at
+  BEFORE UPDATE ON register_cash
+  FOR EACH ROW
+  EXECUTE FUNCTION update_register_cash_updated_at();
+
+-- 初期データの作成（今日と明日の日付用）
+INSERT INTO register_cash (business_date, starting_amount, coins_amount, next_day_amount, next_day_coins)
+VALUES 
+  (to_char(current_date, 'YYYY-MM-DD'), 0, 0, 0, 0),
+  (to_char(current_date + interval '1 day', 'YYYY-MM-DD'), 0, 0, 0, 0)
+ON CONFLICT (business_date) DO NOTHING;</pre>
+      </div>
+    </div>
+    
+    <div class="step">
+      <h3><span class="step-number">5</span> SQLを実行</h3>
+      <p>「Run」ボタンをクリックして、SQLスクリプトを実行してください。</p>
+    </div>
+    
+    <div class="step">
+      <h3><span class="step-number">6</span> アプリケーションを再読み込み</h3>
+      <p>SQLスクリプトが正常に実行されたら、アプリケーションを再読み込みしてください。</p>
+      <p><a href="/" class="button">アプリケーションを再読み込み</a></p>
+    </div>
+  </div>
+  
+  <div class="card">
+    <h2>確認方法</h2>
+    <p>テーブルが正常に作成されたことを確認するには：</p>
+    <ol>
+      <li>アプリケーションを再読み込みする</li>
+      <li>「レジ金確認」ページにアクセスする</li>
+      <li>ページが正常に読み込まれ、入力フィールドが表示されることを確認する</li>
+    </ol>
+    
+    <div class="success">
+      <p>テーブルが正常に作成されると、レジ金確認ページが正しく表示され、すべての入力フィールドが機能するようになります。</p>
+    </div>
+  </div>
+
+  <script>
+    function copySQL() {
+      const sqlText = document.getElementById('sql-script').textContent;
+      navigator.clipboard.writeText(sqlText);
+      
+      const copyButton = document.querySelector('.copy-button');
+      copyButton.textContent = 'コピーしました！';
+      
+      setTimeout(() => {
+        copyButton.textContent = 'コピー';
+      }, 2000);
+    }
+  </script>
+</body>
+</html>
