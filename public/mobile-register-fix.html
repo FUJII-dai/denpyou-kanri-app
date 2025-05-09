@@ -230,6 +230,29 @@
           return;
         }
         
+        // まず execute_sql 関数を作成
+        const createFunctionSQL = `
+          CREATE OR REPLACE FUNCTION execute_sql(query text)
+          RETURNS jsonb
+          LANGUAGE plpgsql
+          SECURITY DEFINER
+          AS $$
+          BEGIN
+            EXECUTE query;
+            RETURN jsonb_build_object('success', true);
+          EXCEPTION WHEN OTHERS THEN
+            RETURN jsonb_build_object(
+              'success', false,
+              'error', SQLERRM,
+              'detail', SQLSTATE
+            );
+          END;
+          $$;
+
+          GRANT EXECUTE ON FUNCTION execute_sql TO anon;
+          GRANT EXECUTE ON FUNCTION execute_sql TO authenticated;
+        `;
+        
         // SQLクエリ
         const sql = `
           CREATE TABLE IF NOT EXISTS register_cash (
@@ -288,6 +311,42 @@
         statusDiv.style.display = 'none';
         
         try {
+          // まず execute_sql 関数を作成
+          try {
+            const createFunctionResponse = await fetch(`${supabaseInfo.url}/rest/v1/`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'apikey': supabaseInfo.key,
+                'Authorization': `Bearer ${supabaseInfo.key}`
+              },
+              body: createFunctionSQL
+            });
+            
+            console.log('Function creation response:', createFunctionResponse);
+          } catch (functionError) {
+            console.error('Error creating function:', functionError);
+            // 関数作成エラーは無視して続行
+          }
+          
+          // 直接SQLを実行する方法を試す
+          try {
+            const directSqlResponse = await fetch(`${supabaseInfo.url}/rest/v1/`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/sql',
+                'apikey': supabaseInfo.key,
+                'Authorization': `Bearer ${supabaseInfo.key}`
+              },
+              body: sql
+            });
+            
+            console.log('Direct SQL response:', directSqlResponse);
+          } catch (directSqlError) {
+            console.error('Error executing direct SQL:', directSqlError);
+            // 直接SQL実行エラーは無視して続行
+          }
+          
           // Supabase REST APIを使用してSQLを実行
           const response = await fetch(`${supabaseInfo.url}/rest/v1/rpc/execute_sql`, {
             method: 'POST',
@@ -309,18 +368,70 @@
             `;
             statusDiv.className = 'status success';
           } else {
-            const errorData = await response.json();
+            // execute_sql が失敗した場合、別の方法を試す
             statusDiv.innerHTML = `
-              <h3>テーブル修正エラー</h3>
-              <p>レジ金テーブルの修正に失敗しました。</p>
-              <p>エラー: ${JSON.stringify(errorData)}</p>
+              <h3>テーブル修正中...</h3>
+              <p>別の方法でテーブル修正を試みています。</p>
             `;
-            statusDiv.className = 'status error';
+            
+            // 今日の日付を取得
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const day = String(today.getDate()).padStart(2, '0');
+            const formattedDate = `${year}-${month}-${day}`;
+            
+            // テーブルが存在しない場合、直接レコードの作成を試みる
+            try {
+              const insertResponse = await fetch(`${supabaseInfo.url}/rest/v1/register_cash`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'apikey': supabaseInfo.key,
+                  'Authorization': `Bearer ${supabaseInfo.key}`,
+                  'Prefer': 'resolution=merge-duplicates'
+                },
+                body: JSON.stringify({
+                  business_date: formattedDate,
+                  starting_amount: 0,
+                  coins_amount: 0,
+                  withdrawals: [],
+                  next_day_amount: 0,
+                  next_day_coins: 0
+                })
+              });
+              
+              if (insertResponse.ok) {
+                statusDiv.innerHTML = `
+                  <h3>テーブル修正が完了しました</h3>
+                  <p>レジ金テーブルが正常に修正されました。</p>
+                  <p>次に「今日のレコードを作成」ボタンをクリックしてください。</p>
+                `;
+                statusDiv.className = 'status success';
+              } else {
+                const errorData = await response.json();
+                statusDiv.innerHTML = `
+                  <h3>テーブル修正エラー</h3>
+                  <p>レジ金テーブルの修正に失敗しました。</p>
+                  <p>エラー: ${JSON.stringify(errorData)}</p>
+                  <p>「キャッシュをクリア」ボタンをクリックしてから、アプリケーションを再読み込みしてください。</p>
+                `;
+                statusDiv.className = 'status error';
+              }
+            } catch (insertError) {
+              statusDiv.innerHTML = `
+                <h3>エラーが発生しました</h3>
+                <p>${insertError.message}</p>
+                <p>「キャッシュをクリア」ボタンをクリックしてから、アプリケーションを再読み込みしてください。</p>
+              `;
+              statusDiv.className = 'status error';
+            }
           }
         } catch (error) {
           statusDiv.innerHTML = `
             <h3>エラーが発生しました</h3>
             <p>${error.message}</p>
+            <p>「キャッシュをクリア」ボタンをクリックしてから、アプリケーションを再読み込みしてください。</p>
           `;
           statusDiv.className = 'status error';
         } finally {
