@@ -287,7 +287,7 @@ const RegisterCash: React.FC<RegisterCashProps> = ({ onBack }) => {
                   データベースの接続に問題がある可能性があります。
                 </p>
                 <a 
-                  href="/register-cash-direct-fix.html" 
+                  href="/register-cash-initializer.html" 
                   className="mt-3 inline-block bg-blue-600 text-white px-4 py-2 rounded-md"
                 >
                   修正ツールを開く
