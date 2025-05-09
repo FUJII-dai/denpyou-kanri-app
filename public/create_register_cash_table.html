@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Register Cash テーブル作成ツール</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      line-height: 1.6;
+      color: #333;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    h1 {
+      color: #4a148c;
+      border-bottom: 2px solid #4a148c;
+      padding-bottom: 10px;
+    }
+    .card {
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    button {
+      background: #4a148c;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      margin-top: 10px;
+    }
+    button:hover {
+      background: #6a1b9a;
+    }
+    button:disabled {
+      background: #cccccc;
+      cursor: not-allowed;
+    }
+    .success {
+      background: #e8f5e9;
+      border-left: 4px solid #4caf50;
+      padding: 10px;
+      margin-top: 10px;
+    }
+    .error {
+      background: #ffebee;
+      border-left: 4px solid #f44336;
+      padding: 10px;
+      margin-top: 10px;
+    }
+    pre {
+      background: #f5f5f5;
+      padding: 10px;
+      border-radius: 4px;
+      overflow-x: auto;
+    }
+    #status {
+      margin-top: 20px;
+    }
+    .hidden {
+      display: none;
+    }
+    .loader {
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #4a148c;
+      border-radius: 50%;
+      width: 20px;
+      height: 20px;
+      animation: spin 2s linear infinite;
+      display: inline-block;
+      margin-right: 10px;
+      vertical-align: middle;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <h1>Register Cash テーブル作成ツール</h1>
+  
+  <div class="card">
+    <h2>問題</h2>
+    <p>アプリケーションが <code>register_cash</code> テーブルにアクセスしようとしていますが、このテーブルがデータベースに存在しません。</p>
+    <p>エラーメッセージ: <code>relation "public.register_cash" does not exist</code></p>
+  </div>
+
+  <div class="card">
+    <h2>解決策</h2>
+    <p>このツールは <code>register_cash</code> テーブルを作成し、必要な権限を設定します。</p>
+    <p>以下のボタンをクリックして、テーブルを作成してください。</p>
+    
+    <button id="createTableBtn">テーブルを作成</button>
+    <button id="initializeDataBtn" disabled>初期データを作成</button>
+    
+    <div id="status" class="hidden"></div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      const createTableBtn = document.getElementById('createTableBtn');
+      const initializeDataBtn = document.getElementById('initializeDataBtn');
+      const status = document.getElementById('status');
+      
+      // Get Supabase credentials from localStorage or URL params
+      let supabaseUrl = 'https://yfsrptorzuwirqgslchk.supabase.co';
+      let supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlmc3JwdG9yenV3aXJxZ3NsY2hrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDY2MjcxNDksImV4cCI6MjA2MjIwMzE0OX0.zM8M-n3VcvxkI2JKQLxzoHdFeVjQCxVu2-j-Xhz2NV8';
+      
+      // Initialize Supabase client
+      const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+      
+      createTableBtn.addEventListener('click', async () => {
+        status.classList.remove('hidden');
+        status.innerHTML = '<div class="loader"></div> テーブルを作成中...';
+        
+        try {
+          // Create table using raw SQL query
+          const { error: createError } = await supabase.rpc('execute_sql', {
+            sql: `
+              CREATE TABLE IF NOT EXISTS register_cash (
+                id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+                business_date text NOT NULL,
+                starting_amount integer DEFAULT 0,
+                coins_amount integer DEFAULT 0,
+                next_day_amount integer DEFAULT 0,
+                next_day_coins integer DEFAULT 0,
+                withdrawals jsonb DEFAULT '[]'::jsonb,
+                created_at timestamptz DEFAULT now(),
+                updated_at timestamptz DEFAULT now()
+              );
+              
+              -- Enable RLS
+              ALTER TABLE register_cash ENABLE ROW LEVEL SECURITY;
+              
+              -- Create policies
+              CREATE POLICY "Users can read all register_cash"
+                ON register_cash
+                FOR SELECT
+                TO authenticated
+                USING (true);
+              
+              CREATE POLICY "Users can insert register_cash"
+                ON register_cash
+                FOR INSERT
+                TO authenticated
+                WITH CHECK (true);
+              
+              CREATE POLICY "Users can update register_cash"
+                ON register_cash
+                FOR UPDATE
+                TO authenticated
+                USING (true)
+                WITH CHECK (true);
+                
+              -- Create updated_at trigger
+              CREATE OR REPLACE FUNCTION update_register_cash_updated_at()
+              RETURNS TRIGGER AS $$
+              BEGIN
+                NEW.updated_at = now();
+                RETURN NEW;
+              END;
+              $$ language 'plpgsql';
+              
+              CREATE TRIGGER update_register_cash_updated_at
+                BEFORE UPDATE ON register_cash
+                FOR EACH ROW
+                EXECUTE FUNCTION update_register_cash_updated_at();
+            `
+          });
+          
+          if (createError) {
+            console.error('Error creating table:', createError);
+            
+            // Try alternative approach - direct SQL query
+            status.innerHTML += '<div>execute_sql関数が見つかりません。代替方法を試行中...</div>';
+            
+            try {
+              // Try creating the table directly
+              const { error: directError } = await supabase
+                .from('register_cash')
+                .insert([
+                  {
+                    business_date: new Date().toISOString().split('T')[0],
+                    starting_amount: 0,
+                    coins_amount: 0,
+                    next_day_amount: 0,
+                    next_day_coins: 0,
+                    withdrawals: []
+                  }
+                ]);
+                
+              if (directError && directError.code === '42P01') {
+                status.innerHTML += '<div class="error">テーブルが存在しません。Supabaseダッシュボードで手動でSQLを実行する必要があります。</div>';
+                
+                // Show SQL to copy
+                const sqlElement = document.createElement('pre');
+                sqlElement.textContent = `
+CREATE TABLE IF NOT EXISTS register_cash (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  business_date text NOT NULL,
+  starting_amount integer DEFAULT 0,
+  coins_amount integer DEFAULT 0,
+  next_day_amount integer DEFAULT 0,
+  next_day_coins integer DEFAULT 0,
+  withdrawals jsonb DEFAULT '[]'::jsonb,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+-- Enable RLS
+ALTER TABLE register_cash ENABLE ROW LEVEL SECURITY;
+
+-- Create policies
+CREATE POLICY "Users can read all register_cash"
+  ON register_cash
+  FOR SELECT
+  TO authenticated
+  USING (true);
+
+CREATE POLICY "Users can insert register_cash"
+  ON register_cash
+  FOR INSERT
+  TO authenticated
+  WITH CHECK (true);
+
+CREATE POLICY "Users can update register_cash"
+  ON register_cash
+  FOR UPDATE
+  TO authenticated
+  USING (true)
+  WITH CHECK (true);
+  
+-- Create updated_at trigger
+CREATE OR REPLACE FUNCTION update_register_cash_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+CREATE TRIGGER update_register_cash_updated_at
+  BEFORE UPDATE ON register_cash
+  FOR EACH ROW
+  EXECUTE FUNCTION update_register_cash_updated_at();
+
+-- Insert initial data
+INSERT INTO register_cash (business_date, starting_amount, coins_amount, next_day_amount, next_day_coins)
+VALUES 
+  (to_char(current_date, 'YYYY-MM-DD'), 0, 0, 0, 0);
+`;
+                
+                status.appendChild(sqlElement);
+                
+                // Add copy button
+                const copyBtn = document.createElement('button');
+                copyBtn.textContent = 'SQLをコピー';
+                copyBtn.addEventListener('click', () => {
+                  navigator.clipboard.writeText(sqlElement.textContent);
+                  copyBtn.textContent = 'コピーしました！';
+                  setTimeout(() => {
+                    copyBtn.textContent = 'SQLをコピー';
+                  }, 2000);
+                });
+                
+                status.appendChild(copyBtn);
+                
+                return;
+              } else if (directError) {
+                throw directError;
+              } else {
+                // Table was created successfully through direct insert
+                status.innerHTML = '<div class="success">テーブルが正常に作成されました！</div>';
+                initializeDataBtn.disabled = false;
+              }
+            } catch (altError) {
+              status.innerHTML += `<div class="error">代替方法でのエラー: ${altError.message}</div>`;
+              console.error('Error with alternative method:', altError);
+              return;
+            }
+          } else {
+            status.innerHTML = '<div class="success">テーブルが正常に作成されました！</div>';
+            initializeDataBtn.disabled = false;
+          }
+        } catch (error) {
+          status.innerHTML = `<div class="error">エラー: ${error.message}</div>`;
+          console.error('Error creating table:', error);
+          return;
+        }
+      });
+      
+      initializeDataBtn.addEventListener('click', async () => {
+        status.classList.remove('hidden');
+        status.innerHTML = '<div class="loader"></div> 初期データを作成中...';
+        
+        try {
+          // Get current business date
+          const now = new Date();
+          const businessDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+          
+          // Create initial record
+          const { error: insertError } = await supabase
+            .from('register_cash')
+            .insert([
+              {
+                business_date: businessDate,
+                starting_amount: 0,
+                coins_amount: 0,
+                next_day_amount: 0,
+                next_day_coins: 0,
+                withdrawals: []
+              }
+            ]);
+          
+          if (insertError) {
+            if (insertError.code === '23505') {
+              // Unique violation - record already exists
+              status.innerHTML = '<div class="success">初期データは既に存在しています。</div>';
+            } else {
+              throw insertError;
+            }
+          } else {
+            status.innerHTML = '<div class="success">初期データが正常に作成されました！</div>';
+          }
+          
+          status.innerHTML += '<div class="success">アプリケーションを再読み込みして、レジ金確認ページを開いてください。</div>';
+          
+          // Add reload button
+          const reloadBtn = document.createElement('button');
+          reloadBtn.textContent = 'アプリケーションを再読み込み';
+          reloadBtn.addEventListener('click', () => {
+            window.location.href = '/';
+          });
+          status.appendChild(reloadBtn);
+          
+        } catch (error) {
+          status.innerHTML = `<div class="error">エラー: ${error.message}</div>`;
+          console.error('Error initializing data:', error);
+        }
+      });
+    });
+  </script>
+</body>
+</html>
