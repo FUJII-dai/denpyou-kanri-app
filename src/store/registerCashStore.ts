@@ -125,7 +125,7 @@ const useRegisterCashStore = create<RegisterCashState>()(
               withdrawals: current.withdrawals,
               next_day_amount: current.nextDayAmount,
               next_day_coins: current.nextDayCoins
-            });
+            } as any);
 
           if (error) {
             console.error('[RegisterCashStore] Error updating starting amount:', error);
@@ -178,7 +178,7 @@ const useRegisterCashStore = create<RegisterCashState>()(
               withdrawals: current.withdrawals,
               next_day_amount: current.nextDayAmount,
               next_day_coins: current.nextDayCoins
-            });
+            } as any);
 
           if (error) {
             console.error('[RegisterCashStore] Error updating coins amount:', error);
@@ -231,7 +231,7 @@ const useRegisterCashStore = create<RegisterCashState>()(
               withdrawals: current.withdrawals,
               next_day_amount: amount,
               next_day_coins: current.nextDayCoins
-            });
+            } as any);
 
           if (error) {
             console.error('[RegisterCashStore] Error updating next day amount:', error);
@@ -284,7 +284,7 @@ const useRegisterCashStore = create<RegisterCashState>()(
               withdrawals: current.withdrawals,
               next_day_amount: current.nextDayAmount,
               next_day_coins: amount
-            });
+            } as any);
 
           if (error) {
             console.error('[RegisterCashStore] Error updating next day coins:', error);
@@ -344,7 +344,7 @@ const useRegisterCashStore = create<RegisterCashState>()(
               withdrawals: updated.withdrawals,
               next_day_amount: current.nextDayAmount,
               next_day_coins: current.nextDayCoins
-            });
+            } as any);
 
           if (error) {
             console.error('[RegisterCashStore] Error adding withdrawal:', error);
@@ -390,7 +390,7 @@ const useRegisterCashStore = create<RegisterCashState>()(
               withdrawals: updated.withdrawals,
               next_day_amount: current.nextDayAmount,
               next_day_coins: current.nextDayCoins
-            });
+            } as any);
 
           if (error) {
             console.error('[RegisterCashStore] Error removing withdrawal:', error);
@@ -436,7 +436,7 @@ const useRegisterCashStore = create<RegisterCashState>()(
             businessDate: date,
             startingAmount: data?.starting_amount || 0,
             coinsAmount: data?.coins_amount || 0,
-            withdrawals: data?.withdrawals || [],
+            withdrawals: (data?.withdrawals as unknown as Withdrawal[]) || [],
             nextDayAmount: data?.next_day_amount || 0,
             nextDayCoins: data?.next_day_coins || 0
           };
