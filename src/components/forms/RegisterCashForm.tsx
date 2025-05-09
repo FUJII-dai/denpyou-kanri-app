@@ -206,19 +206,15 @@ const RegisterCashForm: React.FC<RegisterCashFormProps> = ({
             <div className="space-y-2">
               {withdrawalForms.map((form, index) => (
                 <div key={index} className="grid grid-cols-12 gap-2">
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    className="col-span-3 border rounded-md p-2"
-                    value={form.amount}
-                    onChange={(e) => {
-                      const value = e.target.value.replace(/[^0-9]/g, '');
-                      handleWithdrawalChange(index, 'amount', value);
-                    }}
-                    onFocus={(e) => e.target.select()}
-                    placeholder="出金額"
-                  />
+                  <div className="col-span-3">
+                    <NumberInput
+                      value={form.amount}
+                      onChange={(value) => {
+                        handleWithdrawalChange(index, 'amount', value.toString());
+                      }}
+                      placeholder="出金額"
+                    />
+                  </div>
                   <input
                     type="text"
                     className="col-span-7 border rounded-md p-2"

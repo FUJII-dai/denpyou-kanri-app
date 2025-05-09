@@ -7,7 +7,6 @@ interface NumberInputProps {
   className?: string;
   min?: number;
   max?: number;
-  step?: number;
   disabled?: boolean;
   onBlur?: () => void;
   onFocus?: () => void;
@@ -29,7 +28,6 @@ const NumberInput: React.FC<NumberInputProps> = ({
   className = '',
   min,
   max,
-  step,
   disabled = false,
   onBlur,
   onFocus,
