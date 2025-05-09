@@ -28,7 +28,6 @@ const TimeDebugger: React.FC<TimeDebuggerProps> = ({ onClose }) => {
   }, []);
 
   const runTests = () => {
-    const now = new Date();
     const cases = [
       // 通常のケース（同日内）
       {
