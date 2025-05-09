@@ -26,7 +26,7 @@ const GirlsBarApp = () => {
         return <DailySales onBack={() => setCurrentScreen('dashboard')} />;
       case 'staff':
         return <StaffManagement onBack={() => setCurrentScreen('dashboard')} />;
-      case 'registerCash':
+      case 'register-cash':
         return <RegisterCash />;
       default:
         return <Dashboard onScreenChange={handleScreenChange} />;

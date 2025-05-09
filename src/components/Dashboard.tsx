@@ -133,7 +133,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onScreenChange }) => {
 
           <button 
             className="bg-gray-200 text-gray-800 p-3 rounded-lg shadow-md flex items-center justify-center gap-2"
-            onClick={() => onScreenChange('registerCash')}
+            onClick={() => onScreenChange('register-cash')}
           >
             <Wallet className="w-5 h-5" />
             <span className="font-bold">レジ金確認</span>
