@@ -35,13 +35,7 @@ interface RegisterCashState {
   _debug_log: Array<{ timestamp: Date; action: string; data: any }>;
 }
 
-const customStorage = {
-  ...createJSONStorage(() => localStorage),
-  removeItem: (name: string) => {
-    console.log('[RegisterCashStore] Removing storage:', name);
-    localStorage.removeItem(name);
-  }
-};
+const customStorage = createJSONStorage<RegisterCashState>(() => localStorage);
 
 const useRegisterCashStore = create<RegisterCashState>()(
   persist(
@@ -81,7 +75,7 @@ const useRegisterCashStore = create<RegisterCashState>()(
           });
 
           // Clear localStorage
-          customStorage.removeItem('register-cash-storage');
+          localStorage.removeItem('register-cash-storage');
 
           // Update database
           const { error } = await supabase
@@ -93,7 +87,7 @@ const useRegisterCashStore = create<RegisterCashState>()(
               withdrawals: [],
               next_day_amount: 0,
               next_day_coins: 0
-            });
+            } as any);
 
           if (error) throw error;
 
@@ -131,7 +125,7 @@ const useRegisterCashStore = create<RegisterCashState>()(
               withdrawals: current.withdrawals,
               next_day_amount: current.nextDayAmount,
               next_day_coins: current.nextDayCoins
-            });
+            } as any);
 
           if (error) {
             console.error('[RegisterCashStore] Error updating starting amount:', error);
@@ -184,7 +178,7 @@ const useRegisterCashStore = create<RegisterCashState>()(
               withdrawals: current.withdrawals,
               next_day_amount: current.nextDayAmount,
               next_day_coins: current.nextDayCoins
-            });
+            } as any);
 
           if (error) {
             console.error('[RegisterCashStore] Error updating coins amount:', error);
@@ -237,7 +231,7 @@ const useRegisterCashStore = create<RegisterCashState>()(
               withdrawals: current.withdrawals,
               next_day_amount: amount,
               next_day_coins: current.nextDayCoins
-            });
+            } as any);
 
           if (error) {
             console.error('[RegisterCashStore] Error updating next day amount:', error);
@@ -290,7 +284,7 @@ const useRegisterCashStore = create<RegisterCashState>()(
               withdrawals: current.withdrawals,
               next_day_amount: current.nextDayAmount,
               next_day_coins: amount
-            });
+            } as any);
 
           if (error) {
             console.error('[RegisterCashStore] Error updating next day coins:', error);
@@ -350,7 +344,7 @@ const useRegisterCashStore = create<RegisterCashState>()(
               withdrawals: updated.withdrawals,
               next_day_amount: current.nextDayAmount,
               next_day_coins: current.nextDayCoins
-            });
+            } as any);
 
           if (error) {
             console.error('[RegisterCashStore] Error adding withdrawal:', error);
@@ -396,7 +390,7 @@ const useRegisterCashStore = create<RegisterCashState>()(
               withdrawals: updated.withdrawals,
               next_day_amount: current.nextDayAmount,
               next_day_coins: current.nextDayCoins
-            });
+            } as any);
 
           if (error) {
             console.error('[RegisterCashStore] Error removing withdrawal:', error);
@@ -442,7 +436,7 @@ const useRegisterCashStore = create<RegisterCashState>()(
             businessDate: date,
             startingAmount: data?.starting_amount || 0,
             coinsAmount: data?.coins_amount || 0,
-            withdrawals: data?.withdrawals || [],
+            withdrawals: (data?.withdrawals as unknown as Withdrawal[]) || [],
             nextDayAmount: data?.next_day_amount || 0,
             nextDayCoins: data?.next_day_coins || 0
           };
@@ -473,10 +467,10 @@ const useRegisterCashStore = create<RegisterCashState>()(
     {
       name: 'register-cash-storage',
       storage: customStorage,
-      partialize: (state) => ({
-        currentCash: state.currentCash,
-        initialized: state.initialized
-      })
+      partialize: (state) => {
+        const { currentCash, initialized } = state;
+        return { currentCash, initialized } as unknown as RegisterCashState;
+      }
     }
   )
 );
