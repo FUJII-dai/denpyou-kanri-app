@@ -4,10 +4,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { RefreshCw, Plus, X, Download } from 'lucide-react';
 import NumberInput from '../ui/NumberInput';
-import { RegisterCash, WithdrawalSchema } from '../../types/schema/registerCash';
+import { RegisterCash } from '../../types/schema/registerCash';
 import { formatPrice } from '../../utils/price';
-import { format } from 'date-fns';
-import { ja } from 'date-fns/locale';
 
 const RegisterCashFormSchema = z.object({
   startingAmount: z.number().int().min(0),

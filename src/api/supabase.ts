@@ -122,17 +122,13 @@ export async function updateData<T>(
  */
 export async function upsertData<T>(
   tableName: string,
-  data: any,
-  onConflict?: string
+  data: any
 ): Promise<ApiResponse<T>> {
   try {
-    let query = supabase.from(tableName).upsert(data);
-    
-    if (onConflict) {
-      query = query.onConflict(onConflict);
-    }
-    
-    const { data: result, error } = await query.select();
+    const { data: result, error } = await supabase
+      .from(tableName)
+      .upsert(data)
+      .select();
 
     if (error) {
       console.error(`[API] Error upserting data in ${tableName}:`, error);
@@ -192,13 +188,15 @@ export function subscribeToChanges(
   const channel = supabase
     .channel(`table-changes-${tableName}`)
     .on(
-      'postgres_changes',
-      {
-        event,
-        schema: 'public',
-        table: tableName,
-      },
-      callback
+      'postgres_changes' as any, 
+      { 
+        event: event, 
+        schema: 'public', 
+        table: tableName 
+      } as any, 
+      (payload: any) => {
+        callback(payload);
+      }
     )
     .subscribe();
 
