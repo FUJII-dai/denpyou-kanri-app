@@ -30,6 +30,8 @@ const RegisterCash: React.FC<RegisterCashProps> = ({ onBack }) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const mountedRef = useRef(false);
 
+  const [forceInitialized, setForceInitialized] = useState(false);
+  
   useEffect(() => {
     mountedRef.current = true;
     const businessDate = getBusinessDate();
@@ -44,8 +46,14 @@ const RegisterCash: React.FC<RegisterCashProps> = ({ onBack }) => {
 
     initializeData();
 
+    const timeoutId = setTimeout(() => {
+      console.log('[RegisterCash] Forcing initialization due to timeout');
+      setForceInitialized(true);
+    }, 5000);
+
     return () => {
       mountedRef.current = false;
+      clearTimeout(timeoutId);
     };
   }, [loadRegisterCash]);
 
@@ -221,7 +229,13 @@ const RegisterCash: React.FC<RegisterCashProps> = ({ onBack }) => {
     document.body.removeChild(link);
   };
 
-  if (isRegisterLoading || !registerInitialized) {
+  console.log('[RegisterCash] Loading state:', { 
+    isRegisterLoading, 
+    registerInitialized, 
+    forceInitialized 
+  });
+  
+  if ((isRegisterLoading || !registerInitialized) && !forceInitialized) {
     return (
       <div className="flex flex-col h-screen bg-gray-100">
         <header className="bg-purple-800 text-white p-4">
