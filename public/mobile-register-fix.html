@@ -311,40 +311,90 @@
         statusDiv.style.display = 'none';
         
         try {
-          // まず execute_sql 関数を作成
+          // まず execute_sql 関数を作成 - 複数の方法を試す
           try {
-            const createFunctionResponse = await fetch(`${supabaseInfo.url}/rest/v1/`, {
+            // 方法1: SQL APIを使用して関数を作成
+            const createFunctionResponse = await fetch(`${supabaseInfo.url}/rest/v1/sql`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
                 'apikey': supabaseInfo.key,
                 'Authorization': `Bearer ${supabaseInfo.key}`
               },
-              body: createFunctionSQL
+              body: JSON.stringify({
+                query: createFunctionSQL
+              })
             });
             
-            console.log('Function creation response:', createFunctionResponse);
+            console.log('Function creation response (method 1):', createFunctionResponse);
+            
+            if (!createFunctionResponse.ok) {
+              throw new Error('Method 1 failed');
+            }
           } catch (functionError) {
-            console.error('Error creating function:', functionError);
-            // 関数作成エラーは無視して続行
+            console.error('Error creating function (method 1):', functionError);
+            
+            try {
+              // 方法2: 別のエンドポイントを試す
+              const createFunctionResponse2 = await fetch(`${supabaseInfo.url}/rest/v1/rpc/sql`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'apikey': supabaseInfo.key,
+                  'Authorization': `Bearer ${supabaseInfo.key}`
+                },
+                body: JSON.stringify({
+                  query: createFunctionSQL
+                })
+              });
+              
+              console.log('Function creation response (method 2):', createFunctionResponse2);
+            } catch (functionError2) {
+              console.error('Error creating function (method 2):', functionError2);
+            }
           }
           
-          // 直接SQLを実行する方法を試す
+          // 直接SQLを実行する方法を試す - 複数の方法を試す
           try {
-            const directSqlResponse = await fetch(`${supabaseInfo.url}/rest/v1/`, {
+            // 方法1: SQL APIを使用
+            const directSqlResponse = await fetch(`${supabaseInfo.url}/rest/v1/sql`, {
               method: 'POST',
               headers: {
-                'Content-Type': 'application/sql',
+                'Content-Type': 'application/json',
                 'apikey': supabaseInfo.key,
                 'Authorization': `Bearer ${supabaseInfo.key}`
               },
-              body: sql
+              body: JSON.stringify({
+                query: sql
+              })
             });
             
-            console.log('Direct SQL response:', directSqlResponse);
+            console.log('Direct SQL response (method 1):', directSqlResponse);
+            
+            if (!directSqlResponse.ok) {
+              throw new Error('Method 1 failed');
+            }
           } catch (directSqlError) {
-            console.error('Error executing direct SQL:', directSqlError);
-            // 直接SQL実行エラーは無視して続行
+            console.error('Error executing direct SQL (method 1):', directSqlError);
+            
+            try {
+              // 方法2: 別のエンドポイントを試す
+              const directSqlResponse2 = await fetch(`${supabaseInfo.url}/rest/v1/rpc/sql`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'apikey': supabaseInfo.key,
+                  'Authorization': `Bearer ${supabaseInfo.key}`
+                },
+                body: JSON.stringify({
+                  query: sql
+                })
+              });
+              
+              console.log('Direct SQL response (method 2):', directSqlResponse2);
+            } catch (directSqlError2) {
+              console.error('Error executing direct SQL (method 2):', directSqlError2);
+            }
           }
           
           // Supabase REST APIを使用してSQLを実行
