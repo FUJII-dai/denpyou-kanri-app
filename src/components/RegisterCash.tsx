@@ -95,7 +95,9 @@ const RegisterCash: React.FC<RegisterCashProps> = ({ onBack }) => {
   };
 
   const handleStartingAmountChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const amount = parseInt(e.target.value) || 0;
+    const value = e.target.value.replace(/[^0-9]/g, '');
+    const amount = parseInt(value) || 0;
+    console.log('[RegisterCash] Updating starting amount:', value, amount);
     try {
       await updateStartingAmount(amount);
     } catch (error) {
@@ -104,7 +106,9 @@ const RegisterCash: React.FC<RegisterCashProps> = ({ onBack }) => {
   };
 
   const handleCoinsAmountChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const amount = parseInt(e.target.value) || 0;
+    const value = e.target.value.replace(/[^0-9]/g, '');
+    const amount = parseInt(value) || 0;
+    console.log('[RegisterCash] Updating coins amount:', value, amount);
     try {
       await updateCoinsAmount(amount);
     } catch (error) {
@@ -113,7 +117,9 @@ const RegisterCash: React.FC<RegisterCashProps> = ({ onBack }) => {
   };
 
   const handleNextDayAmountChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const amount = parseInt(e.target.value) || 0;
+    const value = e.target.value.replace(/[^0-9]/g, '');
+    const amount = parseInt(value) || 0;
+    console.log('[RegisterCash] Updating next day amount:', value, amount);
     try {
       await updateNextDayAmount(amount);
     } catch (error) {
@@ -122,7 +128,9 @@ const RegisterCash: React.FC<RegisterCashProps> = ({ onBack }) => {
   };
 
   const handleNextDayCoinsChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const amount = parseInt(e.target.value) || 0;
+    const value = e.target.value.replace(/[^0-9]/g, '');
+    const amount = parseInt(value) || 0;
+    console.log('[RegisterCash] Updating next day coins:', value, amount);
     try {
       await updateNextDayCoins(amount);
     } catch (error) {
@@ -348,13 +356,8 @@ const RegisterCash: React.FC<RegisterCashProps> = ({ onBack }) => {
                 pattern="[0-9]*"
                 className="border rounded-md p-2 w-full"
                 value={currentCash?.startingAmount || ''}
-                onChange={(e) => {
-                  const numericValue = e.target.value.replace(/[^0-9]/g, '');
-                  handleStartingAmountChange({
-                    ...e,
-                    target: { ...e.target, value: numericValue }
-                  });
-                }}
+                onChange={handleStartingAmountChange}
+                onFocus={(e) => e.target.select()}
                 placeholder="0"
               />
             </div>
@@ -367,13 +370,8 @@ const RegisterCash: React.FC<RegisterCashProps> = ({ onBack }) => {
                 pattern="[0-9]*"
                 className="border rounded-md p-2 w-full"
                 value={currentCash?.coinsAmount || ''}
-                onChange={(e) => {
-                  const numericValue = e.target.value.replace(/[^0-9]/g, '');
-                  handleCoinsAmountChange({
-                    ...e,
-                    target: { ...e.target, value: numericValue }
-                  });
-                }}
+                onChange={handleCoinsAmountChange}
+                onFocus={(e) => e.target.select()}
                 placeholder="0"
               />
             </div>
@@ -420,9 +418,11 @@ const RegisterCash: React.FC<RegisterCashProps> = ({ onBack }) => {
                       className="col-span-3 border rounded-md p-2"
                       value={form.amount}
                       onChange={(e) => {
-                        const numericValue = e.target.value.replace(/[^0-9]/g, '');
-                        handleWithdrawalChange(index, 'amount', numericValue);
+                        const value = e.target.value.replace(/[^0-9]/g, '');
+                        console.log('[RegisterCash] Updating withdrawal amount:', value);
+                        handleWithdrawalChange(index, 'amount', value);
                       }}
+                      onFocus={(e) => e.target.select()}
                       placeholder="出金額"
                     />
                     <input
@@ -471,13 +471,8 @@ const RegisterCash: React.FC<RegisterCashProps> = ({ onBack }) => {
                 pattern="[0-9]*"
                 className="border rounded-md p-2 w-full"
                 value={currentCash?.nextDayAmount || ''}
-                onChange={(e) => {
-                  const numericValue = e.target.value.replace(/[^0-9]/g, '');
-                  handleNextDayAmountChange({
-                    ...e,
-                    target: { ...e.target, value: numericValue }
-                  });
-                }}
+                onChange={handleNextDayAmountChange}
+                onFocus={(e) => e.target.select()}
                 placeholder="0"
               />
             </div>
@@ -490,13 +485,8 @@ const RegisterCash: React.FC<RegisterCashProps> = ({ onBack }) => {
                 pattern="[0-9]*"
                 className="border rounded-md p-2 w-full"
                 value={currentCash?.nextDayCoins || ''}
-                onChange={(e) => {
-                  const numericValue = e.target.value.replace(/[^0-9]/g, '');
-                  handleNextDayCoinsChange({
-                    ...e,
-                    target: { ...e.target, value: numericValue }
-                  });
-                }}
+                onChange={handleNextDayCoinsChange}
+                onFocus={(e) => e.target.select()}
                 placeholder="0"
               />
             </div>
