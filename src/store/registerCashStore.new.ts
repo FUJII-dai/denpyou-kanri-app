@@ -63,7 +63,7 @@ const useRegisterCashStore = create<RegisterCashState>()(
               
               const { error: insertError } = await supabase
                 .from('register_cash')
-                .insert(dbRecord);
+                .upsert(dbRecord, { onConflict: 'business_date' });
               
               if (insertError) {
                 throw new Error(`Failed to create register cash record: ${insertError.message}`);
