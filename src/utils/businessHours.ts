@@ -13,7 +13,6 @@ export const BUSINESS_HOURS = {
 export const getBusinessDate = (date: Date = new Date()): string => {
   const today = startOfDay(date);
   const hours = date.getHours();
-  const minutes = date.getMinutes();
   
   // 19:00より前の場合は前日の営業日
   if (hours < 19) {

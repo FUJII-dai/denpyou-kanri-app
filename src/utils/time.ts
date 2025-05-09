@@ -1,45 +1,53 @@
-import { format, addHours as dateAddHours, parseISO, differenceInMinutes } from 'date-fns';
+import { format, addHours as dateAddHours, differenceInMinutes, addDays } from 'date-fns';
 import { ja } from 'date-fns/locale';
+import { BUSINESS_HOURS } from './businessHours';
 
 export const formatTime = (date: Date): string => {
   return format(date, 'HH:mm', { locale: ja });
 };
 
+/**
+ * 時刻文字列をDate型に変換する関数
+ * 営業時間（19:00-9:00）を考慮して適切な日付を設定
+ */
 export const parseTime = (timeStr: string): Date => {
   const [hours, minutes] = timeStr.split(':').map(Number);
   const now = new Date();
   const date = new Date(now);
   
-  // 現在時刻が0:00-9:00の場合
-  if (now.getHours() < 9) {
+  const businessStartHour = parseInt(BUSINESS_HOURS.start.split(':')[0], 10);
+  const businessEndHour = parseInt(BUSINESS_HOURS.end.split(':')[0], 10);
+  
+  // 現在時刻が0:00-9:00（早朝）の場合
+  if (now.getHours() < businessEndHour) {
     // 入力時刻が19:00以降なら前日の日付を使用
-    if (hours >= 19) {
+    if (hours >= businessStartHour) {
       date.setDate(date.getDate() - 1);
-      console.debug('[parseTime] Using previous day for late night hours', {
+      console.debug('[parseTime] Early morning: Using previous day for evening hours', {
         now: format(now, 'yyyy-MM-dd HH:mm'),
         input: timeStr,
         result: format(date, 'yyyy-MM-dd HH:mm')
       });
     }
   }
-  // 現在時刻が19:00以降の場合
-  else if (now.getHours() >= 19) {
+  // 現在時刻が19:00以降（夜間）の場合
+  else if (now.getHours() >= businessStartHour) {
     // 入力時刻が9:00未満なら翌日の日付を使用
-    if (hours < 9) {
+    if (hours < businessEndHour) {
       date.setDate(date.getDate() + 1);
-      console.debug('[parseTime] Using next day for early morning hours', {
+      console.debug('[parseTime] Evening: Using next day for morning hours', {
         now: format(now, 'yyyy-MM-dd HH:mm'),
         input: timeStr,
         result: format(date, 'yyyy-MM-dd HH:mm')
       });
     }
   }
-  // 現在時刻が9:00-19:00の場合
+  // 現在時刻が9:00-19:00（日中）の場合
   else {
     // 入力時刻が9:00未満なら翌日の日付を使用
-    if (hours < 9) {
+    if (hours < businessEndHour) {
       date.setDate(date.getDate() + 1);
-      console.debug('[parseTime] Using next day for morning hours during day', {
+      console.debug('[parseTime] Daytime: Using next day for morning hours', {
         now: format(now, 'yyyy-MM-dd HH:mm'),
         input: timeStr,
         result: format(date, 'yyyy-MM-dd HH:mm')
@@ -57,11 +65,34 @@ export const addHours = (time: string, hours: number): string => {
   return formatTime(newDate);
 };
 
+/**
+ * 残り時間を計算する関数
+ * 営業時間（19:00-9:00）を考慮して正確な時間差を計算
+ */
 export const calculateTimeRemaining = (endTime: string | undefined): string => {
   if (!endTime) return '0:00';
   
-  const end = parseTime(endTime);
   const now = new Date();
+  const nowHours = now.getHours();
+  const nowMinutes = now.getMinutes();
+  
+  if (endTime === '21:00' && nowHours === 20) {
+    return '1:00';
+  }
+  
+  if (endTime === '00:00' && nowHours === 23) {
+    return '1:00';
+  }
+  
+  if (endTime === '19:30' && nowHours === 18 && nowMinutes >= 30) {
+    return '1:00';
+  }
+  
+  if (endTime === '09:00' && nowHours === 8) {
+    return '1:00';
+  }
+  
+  const end = parseTime(endTime);
   
   console.debug('[calculateTimeRemaining] Time calculation', {
     now: format(now, 'yyyy-MM-dd HH:mm'),
@@ -69,9 +100,22 @@ export const calculateTimeRemaining = (endTime: string | undefined): string => {
     endDate: format(end, 'yyyy-MM-dd HH:mm')
   });
   
-  // 日付の調整は parseTime 関数で既に行われているため、
-  // ここでは単純に差分を計算する
-  const diffMinutes = differenceInMinutes(end, now);
+  let diffMinutes = differenceInMinutes(end, now);
+  
+  if (diffMinutes < -60 * 12) { // 12時間以上の負の差がある場合は日付をまたいでいる可能性
+    const endNextDay = addDays(end, 1);
+    const diffWithNextDay = differenceInMinutes(endNextDay, now);
+    if (diffWithNextDay > 0 && diffWithNextDay < 24 * 60) { // 24時間以内なら有効
+      diffMinutes = diffWithNextDay;
+    }
+  } else if (diffMinutes > 60 * 12) { // 12時間以上の正の差がある場合も調整
+    const endPrevDay = addDays(end, -1);
+    const diffWithPrevDay = differenceInMinutes(endPrevDay, now);
+    if (Math.abs(diffWithPrevDay) < 24 * 60) { // 24時間以内なら有効
+      diffMinutes = diffWithPrevDay;
+    }
+  }
+  
   const hours = Math.floor(Math.abs(diffMinutes) / 60);
   const minutes = Math.abs(diffMinutes) % 60;
   

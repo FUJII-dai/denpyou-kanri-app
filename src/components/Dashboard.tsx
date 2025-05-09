@@ -49,10 +49,10 @@ const Dashboard: React.FC<DashboardProps> = ({ onScreenChange }) => {
   return (
     <div className="flex flex-col h-screen bg-gray-100">
       <header className="bg-purple-800 text-white p-4 flex justify-between items-center">
-        <h1 className="text-xl font-bold">FunFare 伝票管理</h1>
+        <h1 className="text-xl font-bold">FunFare 伝票管理v2</h1>
         <div className="flex items-center gap-2">
           <button
-            className="bg-gray-700 text-white p-2 rounded-md"
+            className="bg-red-600 text-white p-2 rounded-md"
             onClick={() => setShowTimeDebugger(true)}
             title="タイマーデバッグ"
           >
