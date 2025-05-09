@@ -362,8 +362,12 @@ const RegisterCash: React.FC<RegisterCashProps> = ({ onBack }) => {
                   <p className="font-bold">エラーが発生しました</p>
                   <p className="text-sm">{loadingError}</p>
                   <p className="text-xs mt-2">
-                    <a href="/fix-register-cash.html" target="_blank" className="text-blue-600 underline">
-                      データベース修正ツールを開く
+                    <a 
+                      href={isMobile.current ? "/mobile-register-fix.html" : "/fix-register-cash.html"} 
+                      target="_blank" 
+                      className="text-blue-600 underline"
+                    >
+                      {isMobile.current ? "モバイル用修正ツールを開く" : "データベース修正ツールを開く"}
                     </a>
                   </p>
                 </div>

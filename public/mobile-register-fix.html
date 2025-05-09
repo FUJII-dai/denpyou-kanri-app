@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>モバイル用レジ金テーブル修正</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      max-width: 100%;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    h1 {
+      color: #6b46c1;
+      font-size: 1.5rem;
+    }
+    button {
+      background-color: #6b46c1;
+      color: white;
+      border: none;
+      padding: 15px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      margin-top: 20px;
+      width: 100%;
+    }
+    button:hover {
+      background-color: #553c9a;
+    }
+    .status {
+      margin-top: 20px;
+      padding: 10px;
+      border-radius: 4px;
+    }
+    .success {
+      background-color: #d4edda;
+      color: #155724;
+    }
+    .error {
+      background-color: #f8d7da;
+      color: #721c24;
+    }
+    .loading {
+      display: none;
+      margin-top: 20px;
+      text-align: center;
+    }
+    .spinner {
+      border: 4px solid rgba(0, 0, 0, 0.1);
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      border-left-color: #6b46c1;
+      animation: spin 1s linear infinite;
+      display: inline-block;
+      vertical-align: middle;
+      margin-right: 10px;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .debug-info {
+      margin-top: 20px;
+      padding: 10px;
+      background-color: #f8f9fa;
+      border-radius: 4px;
+      font-size: 12px;
+      white-space: pre-wrap;
+      word-break: break-all;
+      display: none;
+    }
+    .action-buttons {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <h1>モバイル用レジ金テーブル修正ツール</h1>
+  <p>このツールは、スマートフォンでレジ金確認ページが正常に動作するために必要なデータベース修正を行います。</p>
+  
+  <div class="action-buttons">
+    <button id="checkButton">データベース接続確認</button>
+    <button id="fixButton">テーブル修正を実行</button>
+    <button id="createRecordButton">今日のレコードを作成</button>
+    <button id="clearCacheButton">キャッシュをクリア</button>
+  </div>
+  
+  <div id="loading" class="loading">
+    <div class="spinner"></div>
+    <span>処理中...</span>
+  </div>
+  
+  <div id="status" class="status" style="display: none;"></div>
+  <div id="debugInfo" class="debug-info"></div>
+  
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const checkButton = document.getElementById('checkButton');
+      const fixButton = document.getElementById('fixButton');
+      const createRecordButton = document.getElementById('createRecordButton');
+      const clearCacheButton = document.getElementById('clearCacheButton');
+      const loadingDiv = document.getElementById('loading');
+      const statusDiv = document.getElementById('status');
+      const debugInfoDiv = document.getElementById('debugInfo');
+      
+      // 親ウィンドウからSupabase情報を取得
+      function getSupabaseInfo() {
+        try {
+          // 親ウィンドウからSupabase情報を取得
+          const supabaseUrl = localStorage.getItem('supabase.url');
+          const supabaseKey = localStorage.getItem('supabase.key');
+          
+          // ローカルストレージに保存されていない場合は.envから取得
+          if (!supabaseUrl || !supabaseKey) {
+            // 親ウィンドウのグローバル変数から取得を試みる
+            if (window.parent && window.parent.VITE_SUPABASE_URL && window.parent.VITE_SUPABASE_ANON_KEY) {
+              return {
+                url: window.parent.VITE_SUPABASE_URL,
+                key: window.parent.VITE_SUPABASE_ANON_KEY
+              };
+            }
+            
+            // 環境変数から取得を試みる
+            if (import.meta && import.meta.env) {
+              return {
+                url: import.meta.env.VITE_SUPABASE_URL,
+                key: import.meta.env.VITE_SUPABASE_ANON_KEY
+              };
+            }
+            
+            // 最終手段として直接URLから取得
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlFromParam = urlParams.get('url');
+            const keyFromParam = urlParams.get('key');
+            
+            if (urlFromParam && keyFromParam) {
+              return { url: urlFromParam, key: keyFromParam };
+            }
+            
+            return null;
+          }
+          
+          return { url: supabaseUrl, key: supabaseKey };
+        } catch (error) {
+          console.error('Error getting Supabase info:', error);
+          return null;
+        }
+      }
+      
+      // データベース接続確認
+      checkButton.addEventListener('click', async function() {
+        const supabaseInfo = getSupabaseInfo();
+        
+        if (!supabaseInfo) {
+          statusDiv.innerHTML = `
+            <h3>エラー</h3>
+            <p>Supabase接続情報が見つかりません。</p>
+            <p>以下のURLにアクセスして、アプリケーションを再読み込みしてください：</p>
+            <p><a href="/" target="_blank">アプリケーションを開く</a></p>
+          `;
+          statusDiv.className = 'status error';
+          statusDiv.style.display = 'block';
+          return;
+        }
+        
+        // デバッグ情報を表示
+        debugInfoDiv.textContent = `Supabase URL: ${supabaseInfo.url.substring(0, 10)}...`;
+        debugInfoDiv.style.display = 'block';
+        
+        // ボタンを無効化し、ローディング表示
+        checkButton.disabled = true;
+        loadingDiv.style.display = 'block';
+        statusDiv.style.display = 'none';
+        
+        try {
+          // Supabase REST APIを使用して接続確認
+          const response = await fetch(`${supabaseInfo.url}/rest/v1/`, {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': supabaseInfo.key,
+              'Authorization': `Bearer ${supabaseInfo.key}`
+            }
+          });
+          
+          if (response.ok) {
+            statusDiv.innerHTML = `
+              <h3>接続成功</h3>
+              <p>Supabaseデータベースに正常に接続できました。</p>
+            `;
+            statusDiv.className = 'status success';
+          } else {
+            statusDiv.innerHTML = `
+              <h3>接続エラー</h3>
+              <p>Supabaseデータベースに接続できませんでした。</p>
+              <p>ステータスコード: ${response.status}</p>
+            `;
+            statusDiv.className = 'status error';
+          }
+        } catch (error) {
+          statusDiv.innerHTML = `
+            <h3>エラーが発生しました</h3>
+            <p>${error.message}</p>
+          `;
+          statusDiv.className = 'status error';
+        } finally {
+          loadingDiv.style.display = 'none';
+          checkButton.disabled = false;
+          statusDiv.style.display = 'block';
+        }
+      });
+      
+      // テーブル修正実行
+      fixButton.addEventListener('click', async function() {
+        const supabaseInfo = getSupabaseInfo();
+        
+        if (!supabaseInfo) {
+          statusDiv.innerHTML = `
+            <h3>エラー</h3>
+            <p>Supabase接続情報が見つかりません。</p>
+          `;
+          statusDiv.className = 'status error';
+          statusDiv.style.display = 'block';
+          return;
+        }
+        
+        // SQLクエリ
+        const sql = `
+          CREATE TABLE IF NOT EXISTS register_cash (
+            business_date date PRIMARY KEY,
+            starting_amount integer DEFAULT 0,
+            coins_amount integer DEFAULT 0,
+            withdrawals jsonb DEFAULT '[]'::jsonb,
+            next_day_amount integer DEFAULT 0,
+            next_day_coins integer DEFAULT 0,
+            created_at timestamptz DEFAULT now(),
+            updated_at timestamptz DEFAULT now()
+          );
+          
+          ALTER TABLE register_cash ENABLE ROW LEVEL SECURITY;
+          
+          DROP POLICY IF EXISTS "Anyone can read register_cash" ON register_cash;
+          DROP POLICY IF EXISTS "Anyone can insert register_cash" ON register_cash;
+          DROP POLICY IF EXISTS "Anyone can update register_cash" ON register_cash;
+          
+          CREATE POLICY "Anyone can read register_cash"
+            ON register_cash FOR SELECT
+            TO anon
+            USING (true);
+          
+          CREATE POLICY "Anyone can insert register_cash"
+            ON register_cash FOR INSERT
+            TO anon
+            WITH CHECK (true);
+          
+          CREATE POLICY "Anyone can update register_cash"
+            ON register_cash FOR UPDATE
+            TO anon
+            USING (true)
+            WITH CHECK (true);
+          
+          CREATE OR REPLACE FUNCTION update_updated_at_column()
+          RETURNS TRIGGER AS $$
+          BEGIN
+            NEW.updated_at = now();
+            RETURN NEW;
+          END;
+          $$ language 'plpgsql';
+          
+          DROP TRIGGER IF EXISTS update_register_cash_updated_at ON register_cash;
+          CREATE TRIGGER update_register_cash_updated_at
+            BEFORE UPDATE ON register_cash
+            FOR EACH ROW
+            EXECUTE FUNCTION update_updated_at_column();
+          
+          ALTER PUBLICATION supabase_realtime ADD TABLE register_cash;
+        `;
+        
+        // ボタンを無効化し、ローディング表示
+        fixButton.disabled = true;
+        loadingDiv.style.display = 'block';
+        statusDiv.style.display = 'none';
+        
+        try {
+          // Supabase REST APIを使用してSQLを実行
+          const response = await fetch(`${supabaseInfo.url}/rest/v1/rpc/execute_sql`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': supabaseInfo.key,
+              'Authorization': `Bearer ${supabaseInfo.key}`
+            },
+            body: JSON.stringify({
+              query: sql
+            })
+          });
+          
+          if (response.ok) {
+            statusDiv.innerHTML = `
+              <h3>テーブル修正が完了しました</h3>
+              <p>レジ金テーブルが正常に修正されました。</p>
+              <p>次に「今日のレコードを作成」ボタンをクリックしてください。</p>
+            `;
+            statusDiv.className = 'status success';
+          } else {
+            const errorData = await response.json();
+            statusDiv.innerHTML = `
+              <h3>テーブル修正エラー</h3>
+              <p>レジ金テーブルの修正に失敗しました。</p>
+              <p>エラー: ${JSON.stringify(errorData)}</p>
+            `;
+            statusDiv.className = 'status error';
+          }
+        } catch (error) {
+          statusDiv.innerHTML = `
+            <h3>エラーが発生しました</h3>
+            <p>${error.message}</p>
+          `;
+          statusDiv.className = 'status error';
+        } finally {
+          loadingDiv.style.display = 'none';
+          fixButton.disabled = false;
+          statusDiv.style.display = 'block';
+        }
+      });
+      
+      // 今日のレコードを作成
+      createRecordButton.addEventListener('click', async function() {
+        const supabaseInfo = getSupabaseInfo();
+        
+        if (!supabaseInfo) {
+          statusDiv.innerHTML = `
+            <h3>エラー</h3>
+            <p>Supabase接続情報が見つかりません。</p>
+          `;
+          statusDiv.className = 'status error';
+          statusDiv.style.display = 'block';
+          return;
+        }
+        
+        // 今日の日付を取得
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const day = String(today.getDate()).padStart(2, '0');
+        const formattedDate = `${year}-${month}-${day}`;
+        
+        // ボタンを無効化し、ローディング表示
+        createRecordButton.disabled = true;
+        loadingDiv.style.display = 'block';
+        statusDiv.style.display = 'none';
+        
+        try {
+          // Supabase REST APIを使用してレコードを作成
+          const response = await fetch(`${supabaseInfo.url}/rest/v1/register_cash`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': supabaseInfo.key,
+              'Authorization': `Bearer ${supabaseInfo.key}`,
+              'Prefer': 'resolution=merge-duplicates'
+            },
+            body: JSON.stringify({
+              business_date: formattedDate,
+              starting_amount: 0,
+              coins_amount: 0,
+              withdrawals: [],
+              next_day_amount: 0,
+              next_day_coins: 0
+            })
+          });
+          
+          if (response.ok) {
+            statusDiv.innerHTML = `
+              <h3>レコード作成が完了しました</h3>
+              <p>今日(${formattedDate})のレジ金レコードが正常に作成されました。</p>
+              <p>次に「キャッシュをクリア」ボタンをクリックしてください。</p>
+            `;
+            statusDiv.className = 'status success';
+          } else {
+            const errorData = await response.json();
+            statusDiv.innerHTML = `
+              <h3>レコード作成エラー</h3>
+              <p>レジ金レコードの作成に失敗しました。</p>
+              <p>エラー: ${JSON.stringify(errorData)}</p>
+            `;
+            statusDiv.className = 'status error';
+          }
+        } catch (error) {
+          statusDiv.innerHTML = `
+            <h3>エラーが発生しました</h3>
+            <p>${error.message}</p>
+          `;
+          statusDiv.className = 'status error';
+        } finally {
+          loadingDiv.style.display = 'none';
+          createRecordButton.disabled = false;
+          statusDiv.style.display = 'block';
+        }
+      });
+      
+      // キャッシュをクリア
+      clearCacheButton.addEventListener('click', function() {
+        try {
+          // ローカルストレージをクリア
+          localStorage.removeItem('register-cash-storage');
+          
+          statusDiv.innerHTML = `
+            <h3>キャッシュクリア完了</h3>
+            <p>レジ金データのキャッシュがクリアされました。</p>
+            <p><a href="/" target="_blank">アプリケーションを開く</a>をクリックして、アプリケーションを再読み込みしてください。</p>
+          `;
+          statusDiv.className = 'status success';
+          statusDiv.style.display = 'block';
+        } catch (error) {
+          statusDiv.innerHTML = `
+            <h3>エラーが発生しました</h3>
+            <p>${error.message}</p>
+          `;
+          statusDiv.className = 'status error';
+          statusDiv.style.display = 'block';
+        }
+      });
+    });
+  </script>
+</body>
+</html>
