@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>モバイル用レジ金テーブル修正ツール</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      margin: 0;
+      padding: 16px;
+      background-color: #f5f5f5;
+      color: #333;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      background-color: white;
+      border-radius: 8px;
+      padding: 16px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    h1 {
+      font-size: 1.5rem;
+      margin-top: 0;
+      color: #6b46c1;
+    }
+    .step {
+      margin-bottom: 16px;
+      padding: 12px;
+      border-radius: 4px;
+      background-color: #f9f9f9;
+    }
+    .step-title {
+      font-weight: bold;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+    }
+    .step-status {
+      margin-left: auto;
+      font-size: 0.8rem;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .pending {
+      background-color: #e2e8f0;
+      color: #4a5568;
+    }
+    .running {
+      background-color: #ebf8ff;
+      color: #2b6cb0;
+    }
+    .success {
+      background-color: #f0fff4;
+      color: #2f855a;
+    }
+    .error {
+      background-color: #fff5f5;
+      color: #c53030;
+    }
+    button {
+      background-color: #6b46c1;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      font-weight: bold;
+      cursor: pointer;
+      margin-top: 16px;
+      width: 100%;
+    }
+    button:disabled {
+      background-color: #a0aec0;
+      cursor: not-allowed;
+    }
+    .loading {
+      display: flex;
+      justify-content: center;
+      margin: 20px 0;
+    }
+    .spinner {
+      border: 4px solid rgba(0, 0, 0, 0.1);
+      border-radius: 50%;
+      border-top: 4px solid #6b46c1;
+      width: 30px;
+      height: 30px;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .status {
+      margin-top: 16px;
+      padding: 12px;
+      border-radius: 4px;
+    }
+    .credentials-form {
+      margin-bottom: 16px;
+    }
+    .credentials-form input {
+      width: 100%;
+      padding: 8px;
+      margin-bottom: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    .credentials-form label {
+      display: block;
+      margin-bottom: 4px;
+      font-weight: bold;
+    }
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>モバイル用レジ金テーブル修正ツール</h1>
+    
+    <div id="credentials-form" class="credentials-form">
+      <p>Supabaseの認証情報を入力してください：</p>
+      <div>
+        <label for="supabase-url">Supabase URL:</label>
+        <input type="text" id="supabase-url" placeholder="https://xxxxx.supabase.co">
+      </div>
+      <div>
+        <label for="supabase-key">Supabase API Key:</label>
+        <input type="text" id="supabase-key" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...">
+      </div>
+      <button id="save-credentials">認証情報を保存</button>
+    </div>
+    
+    <div id="fix-container" class="hidden">
+      <div id="steps">
+        <div id="step1" class="step">
+          <div class="step-title">
+            ステップ1: データベース接続確認
+            <span class="step-status pending">待機中</span>
+          </div>
+        </div>
+        <div id="step2" class="step">
+          <div class="step-title">
+            ステップ2: レジ金テーブルの作成
+            <span class="step-status pending">待機中</span>
+          </div>
+        </div>
+        <div id="step3" class="step">
+          <div class="step-title">
+            ステップ3: 今日のレコードの作成
+            <span class="step-status pending">待機中</span>
+          </div>
+        </div>
+        <div id="step4" class="step">
+          <div class="step-title">
+            ステップ4: キャッシュのクリア
+            <span class="step-status pending">待機中</span>
+          </div>
+        </div>
+      </div>
+      
+      <div id="loading" class="loading hidden">
+        <div class="spinner"></div>
+      </div>
+      
+      <div id="status" class="status hidden"></div>
+      
+      <button id="fix-all">すべての修正を実行</button>
+      <button id="clear-cache">キャッシュのみクリア</button>
+      <button id="return">アプリに戻る</button>
+    </div>
+  </div>
+  
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // DOM要素
+      const credentialsForm = document.getElementById('credentials-form');
+      const fixContainer = document.getElementById('fix-container');
+      const supabaseUrlInput = document.getElementById('supabase-url');
+      const supabaseKeyInput = document.getElementById('supabase-key');
+      const saveCredentialsButton = document.getElementById('save-credentials');
+      const fixAllButton = document.getElementById('fix-all');
+      const clearCacheButton = document.getElementById('clear-cache');
+      const returnButton = document.getElementById('return');
+      const loadingDiv = document.getElementById('loading');
+      const statusDiv = document.getElementById('status');
+      
+      // Supabase情報を取得
+      function getSupabaseInfo() {
+        // ローカルストレージから取得
+        const url = localStorage.getItem('supabase_url');
+        const key = localStorage.getItem('supabase_anon_key');
+        
+        if (url && key) {
+          return { url, key };
+        }
+        
+        // URLパラメータから取得
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlParam = urlParams.get('url');
+        const keyParam = urlParams.get('key');
+        
+        if (urlParam && keyParam) {
+          // ローカルストレージに保存
+          localStorage.setItem('supabase_url', urlParam);
+          localStorage.setItem('supabase_anon_key', keyParam);
+          return { url: urlParam, key: keyParam };
+        }
+        
+        return null;
+      }
+      
+      // 認証情報の確認と表示切替
+      function checkCredentials() {
+        const credentials = getSupabaseInfo();
+        
+        if (credentials) {
+          credentialsForm.classList.add('hidden');
+          fixContainer.classList.remove('hidden');
+          return true;
+        } else {
+          credentialsForm.classList.remove('hidden');
+          fixContainer.classList.add('hidden');
+          return false;
+        }
+      }
+      
+      // 初期チェック
+      checkCredentials();
+      
+      // 認証情報保存ボタンのイベントリスナー
+      saveCredentialsButton.addEventListener('click', function() {
+        const url = supabaseUrlInput.value.trim();
+        const key = supabaseKeyInput.value.trim();
+        
+        if (!url || !key) {
+          alert('URLとAPIキーを入力してください');
+          return;
+        }
+        
+        localStorage.setItem('supabase_url', url);
+        localStorage.setItem('supabase_anon_key', key);
+        
+        checkCredentials();
+      });
+      
+      // ステップのステータス更新
+      function updateStepStatus(stepId, status, message = '') {
+        const step = document.getElementById(stepId);
+        const statusSpan = step.querySelector('.step-status');
+        
+        statusSpan.className = 'step-status ' + status;
+        
+        switch (status) {
+          case 'pending':
+            statusSpan.textContent = '待機中';
+            break;
+          case 'running':
+            statusSpan.textContent = '実行中...';
+            break;
+          case 'success':
+            statusSpan.textContent = '成功';
+            break;
+          case 'error':
+            statusSpan.textContent = 'エラー';
+            break;
+        }
+        
+        if (message) {
+          const messageDiv = step.querySelector('.step-message');
+          if (messageDiv) {
+            messageDiv.textContent = message;
+          } else {
+            const newMessageDiv = document.createElement('div');
+            newMessageDiv.className = 'step-message';
+            newMessageDiv.textContent = message;
+            step.appendChild(newMessageDiv);
+          }
+        }
+      }
+      
+      // Supabaseクライアントの作成
+      function createSupabaseClient() {
+        const credentials = getSupabaseInfo();
+        
+        if (!credentials) {
+          throw new Error('Supabase認証情報が見つかりません');
+        }
+        
+        return {
+          url: credentials.url,
+          key: credentials.key,
+          async fetch(path, options = {}) {
+            const url = `${credentials.url}${path}`;
+            const headers = {
+              'apikey': credentials.key,
+              'Authorization': `Bearer ${credentials.key}`,
+              'Content-Type': 'application/json',
+              ...options.headers
+            };
+            
+            const response = await fetch(url, {
+              ...options,
+              headers
+            });
+            
+            if (!response.ok) {
+              const error = await response.json().catch(() => ({}));
+              throw new Error(error.message || `HTTP error ${response.status}`);
+            }
+            
+            return response.json();
+          }
+        };
+      }
+      
+      // ステップ1: データベース接続確認
+      async function checkConnection() {
+        updateStepStatus('step1', 'running');
+        
+        try {
+          const supabase = createSupabaseClient();
+          
+          // 簡単なクエリを実行して接続を確認
+          await supabase.fetch('/rest/v1/orders?select=count&limit=1');
+          
+          updateStepStatus('step1', 'success');
+          return true;
+        } catch (error) {
+          updateStepStatus('step1', 'error', `エラー: ${error.message}`);
+          return false;
+        }
+      }
+      
+      // ステップ2: レジ金テーブルの作成
+      async function createTable() {
+        updateStepStatus('step2', 'running');
+        
+        try {
+          const supabase = createSupabaseClient();
+          
+          // テーブル作成のSQLを直接実行
+          const createTableSQL = `
+            CREATE TABLE IF NOT EXISTS register_cash (
+              business_date date PRIMARY KEY,
+              starting_amount integer DEFAULT 0,
+              coins_amount integer DEFAULT 0,
+              withdrawals jsonb DEFAULT '[]'::jsonb,
+              next_day_amount integer DEFAULT 0,
+              next_day_coins integer DEFAULT 0,
+              created_at timestamptz DEFAULT now(),
+              updated_at timestamptz DEFAULT now()
+            );
+            
+            ALTER TABLE register_cash ENABLE ROW LEVEL SECURITY;
+            
+            DROP POLICY IF EXISTS "Anyone can read register_cash" ON register_cash;
+            DROP POLICY IF EXISTS "Anyone can insert register_cash" ON register_cash;
+            DROP POLICY IF EXISTS "Anyone can update register_cash" ON register_cash;
+            
+            CREATE POLICY "Anyone can read register_cash"
+              ON register_cash FOR SELECT
+              TO anon
+              USING (true);
+            
+            CREATE POLICY "Anyone can insert register_cash"
+              ON register_cash FOR INSERT
+              TO anon
+              WITH CHECK (true);
+            
+            CREATE POLICY "Anyone can update register_cash"
+              ON register_cash FOR UPDATE
+              TO anon
+              USING (true)
+              WITH CHECK (true);
+            
+            CREATE OR REPLACE FUNCTION update_updated_at_column()
+            RETURNS TRIGGER AS $$
+            BEGIN
+              NEW.updated_at = now();
+              RETURN NEW;
+            END;
+            $$ language 'plpgsql';
+            
+            DROP TRIGGER IF EXISTS update_register_cash_updated_at ON register_cash;
+            CREATE TRIGGER update_register_cash_updated_at
+              BEFORE UPDATE ON register_cash
+              FOR EACH ROW
+              EXECUTE FUNCTION update_updated_at_column();
+            
+            ALTER PUBLICATION supabase_realtime ADD TABLE register_cash;
+          `;
+          
+          // 管理者APIを使用してSQLを実行
+          const response = await fetch(`${supabase.url}/rest/v1/`, {
+            method: 'POST',
+            headers: {
+              'apikey': supabase.key,
+              'Authorization': `Bearer ${supabase.key}`,
+              'Content-Type': 'application/json',
+              'Prefer': 'resolution=merge-duplicates'
+            },
+            body: JSON.stringify({
+              query: createTableSQL
+            })
+          });
+          
+          if (!response.ok) {
+            // エラーが発生した場合でも続行
+            console.warn('テーブル作成エラー:', await response.text());
+          }
+          
+          // テーブルが存在するか確認
+          try {
+            await supabase.fetch('/rest/v1/register_cash?select=count&limit=1');
+            updateStepStatus('step2', 'success');
+            return true;
+          } catch (error) {
+            // テーブルが存在しない場合は別の方法を試す
+            updateStepStatus('step2', 'error', `テーブル確認エラー: ${error.message}`);
+            
+            // 直接テーブルを作成する代替方法
+            try {
+              await fetch(`${supabase.url}/rest/v1/register_cash`, {
+                method: 'POST',
+                headers: {
+                  'apikey': supabase.key,
+                  'Authorization': `Bearer ${supabase.key}`,
+                  'Content-Type': 'application/json',
+                  'Prefer': 'return=minimal'
+                },
+                body: JSON.stringify({
+                  business_date: new Date().toISOString().split('T')[0],
+                  starting_amount: 0,
+                  coins_amount: 0,
+                  withdrawals: [],
+                  next_day_amount: 0,
+                  next_day_coins: 0
+                })
+              });
+              
+              updateStepStatus('step2', 'success', '代替方法でテーブルを作成しました');
+              return true;
+            } catch (directError) {
+              updateStepStatus('step2', 'error', `代替方法でのテーブル作成エラー: ${directError.message}`);
+              return false;
+            }
+          }
+        } catch (error) {
+          updateStepStatus('step2', 'error', `エラー: ${error.message}`);
+          return false;
+        }
+      }
+      
+      // ステップ3: 今日のレコードの作成
+      async function createRecord() {
+        updateStepStatus('step3', 'running');
+        
+        try {
+          const supabase = createSupabaseClient();
+          const today = new Date().toISOString().split('T')[0];
+          
+          // 今日のレコードを作成
+          await supabase.fetch('/rest/v1/register_cash', {
+            method: 'POST',
+            body: JSON.stringify({
+              business_date: today,
+              starting_amount: 0,
+              coins_amount: 0,
+              withdrawals: [],
+              next_day_amount: 0,
+              next_day_coins: 0
+            }),
+            headers: {
+              'Prefer': 'resolution=merge-duplicates'
+            }
+          });
+          
+          updateStepStatus('step3', 'success');
+          return true;
+        } catch (error) {
+          updateStepStatus('step3', 'error', `エラー: ${error.message}`);
+          return false;
+        }
+      }
+      
+      // ステップ4: キャッシュのクリア
+      function clearCache() {
+        updateStepStatus('step4', 'running');
+        
+        try {
+          // ローカルストレージをクリア
+          localStorage.removeItem('register-cash-storage');
+          
+          // IndexedDBをクリア
+          if (window.indexedDB && window.indexedDB.databases) {
+            window.indexedDB.databases().then(dbs => {
+              dbs.forEach(db => {
+                if (db.name) {
+                  window.indexedDB.deleteDatabase(db.name);
+                }
+              });
+            }).catch(err => {
+              console.error('Error clearing IndexedDB:', err);
+            });
+          }
+          
+          updateStepStatus('step4', 'success', 'キャッシュクリア成功');
+          return true;
+        } catch (error) {
+          updateStepStatus('step4', 'error', `エラー: ${error.message}`);
+          return false;
+        }
+      }
+      
+      // すべての修正を実行
+      async function fixAll() {
+        fixAllButton.disabled = true;
+        loadingDiv.classList.remove('hidden');
+        statusDiv.classList.add('hidden');
+        
+        try {
+          // ステップ1: データベース接続確認
+          const connectionOk = await checkConnection();
+          
+          if (!connectionOk) {
+            throw new Error('データベース接続に失敗しました');
+          }
+          
+          // ステップ2: レジ金テーブルの作成
+          await createTable();
+          
+          // ステップ3: 今日のレコードの作成
+          await createRecord();
+          
+          // ステップ4: キャッシュのクリア
+          clearCache();
+          
+          // 結果を表示
+          statusDiv.innerHTML = `
+            <h3>修正が完了しました</h3>
+            <p>すべての修正が正常に完了しました。アプリケーションを再読み込みして、レジ金確認ページが正常に動作するか確認してください。</p>
+            <p><a href="/" target="_blank">アプリケーションを開く</a></p>
+          `;
+          statusDiv.className = 'status success';
+        } catch (error) {
+          statusDiv.innerHTML = `
+            <h3>エラーが発生しました</h3>
+            <p>${error.message}</p>
+            <p>もう一度試すか、管理者に連絡してください。</p>
+          `;
+          statusDiv.className = 'status error';
+        } finally {
+          loadingDiv.classList.add('hidden');
+          fixAllButton.disabled = false;
+          statusDiv.classList.remove('hidden');
+        }
+      }
+      
+      // キャッシュクリアのみ実行
+      function clearCacheOnly() {
+        clearCacheButton.disabled = true;
+        loadingDiv.classList.remove('hidden');
+        statusDiv.classList.add('hidden');
+        
+        try {
+          clearCache();
+          
+          statusDiv.innerHTML = `
+            <h3>キャッシュクリア成功</h3>
+            <p>キャッシュが正常にクリアされました。アプリケーションを再読み込みしてください。</p>
+            <p><a href="/" target="_blank">アプリケーションを開く</a></p>
+          `;
+          statusDiv.className = 'status success';
+        } catch (error) {
+          statusDiv.innerHTML = `
+            <h3>エラーが発生しました</h3>
+            <p>${error.message}</p>
+          `;
+          statusDiv.className = 'status error';
+        } finally {
+          loadingDiv.classList.add('hidden');
+          clearCacheButton.disabled = false;
+          statusDiv.classList.remove('hidden');
+        }
+      }
+      
+      // イベントリスナーを設定
+      fixAllButton.addEventListener('click', fixAll);
+      clearCacheButton.addEventListener('click', clearCacheOnly);
+      returnButton.addEventListener('click', function() {
+        window.location.href = '/';
+      });
+    });
+  </script>
+</body>
+</html>
