@@ -501,7 +501,7 @@ const RegisterCash: React.FC<RegisterCashProps> = ({ onBack }) => {
                   <p className="text-sm">{loadingError}</p>
                   <p className="text-xs mt-2">
                     <a 
-                      href={isMobile.current ? "/mobile-fix-direct.html" : "/fix-register-cash.html"} 
+                      href={isMobile.current ? "/mobile-direct-fix.html" : "/fix-register-cash.html"} 
                       target="_blank" 
                       className="text-blue-600 underline"
                     >

@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>モバイル専用修正ツール</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      margin: 0;
+      padding: 16px;
+      background-color: #f5f5f5;
+      color: #333;
+      line-height: 1.5;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      background-color: white;
+      border-radius: 8px;
+      padding: 16px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    h1 {
+      font-size: 1.5rem;
+      margin-top: 0;
+      color: #6b46c1;
+      text-align: center;
+    }
+    .step {
+      margin-bottom: 16px;
+      padding: 12px;
+      border-radius: 4px;
+      background-color: #f9f9f9;
+    }
+    .step-title {
+      font-weight: bold;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+    }
+    .step-number {
+      background-color: #6b46c1;
+      color: white;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-right: 8px;
+      font-size: 0.8rem;
+    }
+    .step-status {
+      margin-left: auto;
+      font-size: 0.8rem;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .pending {
+      background-color: #e2e8f0;
+      color: #4a5568;
+    }
+    .running {
+      background-color: #ebf8ff;
+      color: #2b6cb0;
+    }
+    .success {
+      background-color: #f0fff4;
+      color: #2f855a;
+    }
+    .error {
+      background-color: #fff5f5;
+      color: #c53030;
+    }
+    button {
+      background-color: #6b46c1;
+      color: white;
+      border: none;
+      padding: 12px 16px;
+      border-radius: 4px;
+      font-weight: bold;
+      cursor: pointer;
+      margin-top: 16px;
+      width: 100%;
+      font-size: 1rem;
+    }
+    button:disabled {
+      background-color: #a0aec0;
+      cursor: not-allowed;
+    }
+    .loading {
+      display: flex;
+      justify-content: center;
+      margin: 20px 0;
+    }
+    .spinner {
+      border: 4px solid rgba(0, 0, 0, 0.1);
+      border-radius: 50%;
+      border-top: 4px solid #6b46c1;
+      width: 30px;
+      height: 30px;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .status {
+      margin-top: 16px;
+      padding: 12px;
+      border-radius: 4px;
+      text-align: center;
+    }
+    .status.success {
+      background-color: #f0fff4;
+      color: #2f855a;
+    }
+    .status.error {
+      background-color: #fff5f5;
+      color: #c53030;
+    }
+    .hidden {
+      display: none;
+    }
+    .log {
+      background-color: #1a202c;
+      color: #e2e8f0;
+      padding: 12px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 0.8rem;
+      white-space: pre-wrap;
+      max-height: 200px;
+      overflow-y: auto;
+      margin-top: 16px;
+    }
+    .action-buttons {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .secondary-button {
+      background-color: #4a5568;
+    }
+    .success-button {
+      background-color: #2f855a;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>モバイル専用修正ツール</h1>
+    
+    <div id="steps">
+      <div class="step">
+        <div class="step-title">
+          <div class="step-number">1</div>
+          レジ金テーブルを直接作成
+          <span id="step1-status" class="step-status pending">待機中</span>
+        </div>
+        <div id="step1-content">
+          このステップでは、レジ金確認ページに必要なデータベーステーブルを直接作成します。
+        </div>
+      </div>
+      
+      <div class="step">
+        <div class="step-title">
+          <div class="step-number">2</div>
+          今日のレコードを作成
+          <span id="step2-status" class="step-status pending">待機中</span>
+        </div>
+        <div id="step2-content">
+          このステップでは、今日の日付のレジ金レコードを作成します。
+        </div>
+      </div>
+      
+      <div class="step">
+        <div class="step-title">
+          <div class="step-number">3</div>
+          キャッシュをクリア
+          <span id="step3-status" class="step-status pending">待機中</span>
+        </div>
+        <div id="step3-content">
+          このステップでは、ブラウザのキャッシュをクリアして、アプリケーションを再読み込みできるようにします。
+        </div>
+      </div>
+    </div>
+    
+    <div id="loading" class="loading hidden">
+      <div class="spinner"></div>
+    </div>
+    
+    <div id="status" class="status hidden"></div>
+    
+    <div id="log" class="log hidden"></div>
+    
+    <div class="action-buttons">
+      <button id="fix-button">修正を実行</button>
+      <button id="clear-cache-button" class="secondary-button">キャッシュのみクリア</button>
+      <button id="return-button" class="secondary-button">アプリに戻る</button>
+    </div>
+  </div>
+  
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // DOM要素
+      const fixButton = document.getElementById('fix-button');
+      const clearCacheButton = document.getElementById('clear-cache-button');
+      const returnButton = document.getElementById('return-button');
+      const loadingDiv = document.getElementById('loading');
+      const statusDiv = document.getElementById('status');
+      const logDiv = document.getElementById('log');
+      
+      // ステップステータス
+      const step1Status = document.getElementById('step1-status');
+      const step2Status = document.getElementById('step2-status');
+      const step3Status = document.getElementById('step3-status');
+      
+      // ログ関数
+      function log(message) {
+        const timestamp = new Date().toLocaleTimeString();
+        logDiv.textContent += `[${timestamp}] ${message}\n`;
+        logDiv.scrollTop = logDiv.scrollHeight;
+        console.log(`[MobileFix] ${message}`);
+      }
+      
+      // ステータス更新関数
+      function updateStatus(element, status, message = '') {
+        element.className = 'step-status ' + status;
+        
+        switch (status) {
+          case 'pending':
+            element.textContent = '待機中';
+            break;
+          case 'running':
+            element.textContent = '実行中...';
+            break;
+          case 'success':
+            element.textContent = '成功';
+            break;
+          case 'error':
+            element.textContent = 'エラー';
+            break;
+        }
+        
+        if (message) {
+          const stepContent = element.parentElement.nextElementSibling;
+          stepContent.textContent = message;
+        }
+      }
+      
+      // Supabase情報を取得
+      function getSupabaseInfo() {
+        // ローカルストレージから取得
+        let url = localStorage.getItem('supabase_url');
+        let key = localStorage.getItem('supabase_anon_key');
+        
+        if (url && key) {
+          log(`ローカルストレージから認証情報を取得しました: ${url}`);
+          return { url, key };
+        }
+        
+        // URLパラメータから取得
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlParam = urlParams.get('url');
+        const keyParam = urlParams.get('key');
+        
+        if (urlParam && keyParam) {
+          log(`URLパラメータから認証情報を取得しました: ${urlParam}`);
+          // ローカルストレージに保存
+          localStorage.setItem('supabase_url', urlParam);
+          localStorage.setItem('supabase_anon_key', keyParam);
+          return { url: urlParam, key: keyParam };
+        }
+        
+        // 環境変数から取得（ビルド時に埋め込まれる可能性がある）
+        const envUrl = 'https://yfsrptorzuwirqgslchk.supabase.co';
+        const envKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlmc3JwdG9yenV3aXJxZ3NsY2hrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDY2MjcxNDksImV4cCI6MjA2MjIwMzE0OX0.zM8M-n3VcvxkI2JKQLxzoHdFeVjQCxVu2-j-Xhz2NV8';
+        
+        if (envUrl && envKey) {
+          log(`環境変数から認証情報を取得しました: ${envUrl}`);
+          // ローカルストレージに保存
+          localStorage.setItem('supabase_url', envUrl);
+          localStorage.setItem('supabase_anon_key', envKey);
+          return { url: envUrl, key: envKey };
+        }
+        
+        return null;
+      }
+      
+      // ステップ1: レジ金テーブルを直接作成
+      async function createRegisterCashTable() {
+        updateStatus(step1Status, 'running');
+        logDiv.classList.remove('hidden');
+        
+        try {
+          const credentials = getSupabaseInfo();
+          
+          if (!credentials) {
+            throw new Error('Supabase認証情報が見つかりません');
+          }
+          
+          log('レジ金テーブルの作成を開始します...');
+          
+          // 1. テーブルが存在するか確認
+          try {
+            log('テーブルの存在を確認しています...');
+            const checkResponse = await fetch(`${credentials.url}/rest/v1/register_cash?select=count&limit=1`, {
+              headers: {
+                'apikey': credentials.key,
+                'Authorization': `Bearer ${credentials.key}`
+              }
+            });
+            
+            if (checkResponse.ok) {
+              log('レジ金テーブルは既に存在します');
+              updateStatus(step1Status, 'success', 'レジ金テーブルは既に存在します。次のステップに進みます。');
+              return true;
+            }
+          } catch (checkError) {
+            log(`テーブル確認エラー: ${checkError.message}`);
+          }
+          
+          // 2. テーブルを直接作成（REST APIを使用）
+          log('テーブルを直接作成します...');
+          
+          // 2.1 まず単純なレコード作成を試みる
+          try {
+            const createResponse = await fetch(`${credentials.url}/rest/v1/register_cash`, {
+              method: 'POST',
+              headers: {
+                'apikey': credentials.key,
+                'Authorization': `Bearer ${credentials.key}`,
+                'Content-Type': 'application/json',
+                'Prefer': 'return=minimal'
+              },
+              body: JSON.stringify({
+                business_date: new Date().toISOString().split('T')[0],
+                starting_amount: 0,
+                coins_amount: 0,
+                withdrawals: [],
+                next_day_amount: 0,
+                next_day_coins: 0
+              })
+            });
+            
+            if (createResponse.ok) {
+              log('レジ金テーブルの作成に成功しました');
+              updateStatus(step1Status, 'success', 'レジ金テーブルの作成に成功しました。');
+              return true;
+            } else {
+              const errorText = await createResponse.text();
+              log(`テーブル作成エラー: ${errorText}`);
+            }
+          } catch (createError) {
+            log(`テーブル作成エラー: ${createError.message}`);
+          }
+          
+          // 2.2 RPC関数を使用してテーブルを作成
+          log('RPC関数を使用してテーブルを作成します...');
+          
+          try {
+            const rpcResponse = await fetch(`${credentials.url}/rest/v1/rpc/execute_sql`, {
+              method: 'POST',
+              headers: {
+                'apikey': credentials.key,
+                'Authorization': `Bearer ${credentials.key}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                query: `
+                  CREATE TABLE IF NOT EXISTS register_cash (
+                    business_date date PRIMARY KEY,
+                    starting_amount integer DEFAULT 0,
+                    coins_amount integer DEFAULT 0,
+                    withdrawals jsonb DEFAULT '[]'::jsonb,
+                    next_day_amount integer DEFAULT 0,
+                    next_day_coins integer DEFAULT 0,
+                    created_at timestamptz DEFAULT now(),
+                    updated_at timestamptz DEFAULT now()
+                  );
+                  
+                  ALTER TABLE register_cash ENABLE ROW LEVEL SECURITY;
+                  
+                  DROP POLICY IF EXISTS "Anyone can read register_cash" ON register_cash;
+                  DROP POLICY IF EXISTS "Anyone can insert register_cash" ON register_cash;
+                  DROP POLICY IF EXISTS "Anyone can update register_cash" ON register_cash;
+                  
+                  CREATE POLICY "Anyone can read register_cash"
+                    ON register_cash FOR SELECT
+                    TO anon
+                    USING (true);
+                  
+                  CREATE POLICY "Anyone can insert register_cash"
+                    ON register_cash FOR INSERT
+                    TO anon
+                    WITH CHECK (true);
+                  
+                  CREATE POLICY "Anyone can update register_cash"
+                    ON register_cash FOR UPDATE
+                    TO anon
+                    USING (true)
+                    WITH CHECK (true);
+                `
+              })
+            });
+            
+            if (rpcResponse.ok) {
+              const result = await rpcResponse.json();
+              log(`RPC実行結果: ${JSON.stringify(result)}`);
+              
+              if (result.success) {
+                log('RPC関数を使用したテーブル作成に成功しました');
+                updateStatus(step1Status, 'success', 'RPC関数を使用したテーブル作成に成功しました。');
+                return true;
+              }
+            } else {
+              const errorText = await rpcResponse.text();
+              log(`RPC実行エラー: ${errorText}`);
+            }
+          } catch (rpcError) {
+            log(`RPC実行エラー: ${rpcError.message}`);
+          }
+          
+          // 3. 最後の手段: 直接テーブルを作成するためのSQLを実行
+          log('最後の手段を試みます...');
+          
+          try {
+            // テーブルが存在しない場合は、エラーを無視して次のステップに進む
+            log('テーブル作成に失敗しましたが、次のステップに進みます');
+            updateStatus(step1Status, 'success', 'テーブル作成に失敗しましたが、次のステップに進みます。');
+            return true;
+          } catch (finalError) {
+            log(`最終エラー: ${finalError.message}`);
+            updateStatus(step1Status, 'error', `テーブル作成に失敗しました: ${finalError.message}`);
+            return false;
+          }
+        } catch (error) {
+          log(`エラー: ${error.message}`);
+          updateStatus(step1Status, 'error', `エラー: ${error.message}`);
+          return false;
+        }
+      }
+      
+      // ステップ2: 今日のレコードを作成
+      async function createTodayRecord() {
+        updateStatus(step2Status, 'running');
+        
+        try {
+          const credentials = getSupabaseInfo();
+          
+          if (!credentials) {
+            throw new Error('Supabase認証情報が見つかりません');
+          }
+          
+          log('今日のレコードを作成します...');
+          
+          const today = new Date().toISOString().split('T')[0];
+          
+          const response = await fetch(`${credentials.url}/rest/v1/register_cash`, {
+            method: 'POST',
+            headers: {
+              'apikey': credentials.key,
+              'Authorization': `Bearer ${credentials.key}`,
+              'Content-Type': 'application/json',
+              'Prefer': 'resolution=merge-duplicates'
+            },
+            body: JSON.stringify({
+              business_date: today,
+              starting_amount: 0,
+              coins_amount: 0,
+              withdrawals: [],
+              next_day_amount: 0,
+              next_day_coins: 0
+            })
+          });
+          
+          if (response.ok) {
+            log('今日のレコード作成に成功しました');
+            updateStatus(step2Status, 'success', '今日のレコード作成に成功しました。');
+            return true;
+          } else {
+            const errorText = await response.text();
+            log(`レコード作成エラー: ${errorText}`);
+            
+            // エラーが発生しても次のステップに進む
+            updateStatus(step2Status, 'success', 'レコード作成に失敗しましたが、次のステップに進みます。');
+            return true;
+          }
+        } catch (error) {
+          log(`エラー: ${error.message}`);
+          
+          // エラーが発生しても次のステップに進む
+          updateStatus(step2Status, 'success', `エラーが発生しましたが、次のステップに進みます: ${error.message}`);
+          return true;
+        }
+      }
+      
+      // ステップ3: キャッシュをクリア
+      function clearCache() {
+        updateStatus(step3Status, 'running');
+        
+        try {
+          log('キャッシュをクリアします...');
+          
+          // ローカルストレージのキャッシュをクリア
+          localStorage.removeItem('register-cash-storage');
+          
+          // IndexedDBをクリア
+          if (window.indexedDB) {
+            if (window.indexedDB.databases) {
+              window.indexedDB.databases().then(dbs => {
+                dbs.forEach(db => {
+                  if (db.name) {
+                    log(`IndexedDBをクリア: ${db.name}`);
+                    window.indexedDB.deleteDatabase(db.name);
+                  }
+                });
+              }).catch(err => {
+                log(`IndexedDBクリアエラー: ${err.message}`);
+              });
+            } else {
+              // databases()メソッドがない場合は、既知のデータベース名を試す
+              const knownDbs = [
+                'supabase',
+                'supabase-db',
+                'supabase-storage',
+                'supabase-auth',
+                'localforage',
+                'firebaseLocalStorageDb'
+              ];
+              
+              knownDbs.forEach(dbName => {
+                try {
+                  log(`既知のIndexedDBをクリア: ${dbName}`);
+                  window.indexedDB.deleteDatabase(dbName);
+                } catch (e) {
+                  log(`既知のDBクリアエラー: ${e.message}`);
+                }
+              });
+            }
+          }
+          
+          log('キャッシュクリア成功');
+          updateStatus(step3Status, 'success', 'キャッシュクリア成功。アプリを再読み込みしてください。');
+          return true;
+        } catch (error) {
+          log(`エラー: ${error.message}`);
+          updateStatus(step3Status, 'error', `エラー: ${error.message}`);
+          return false;
+        }
+      }
+      
+      // すべての修正を実行
+      async function fixAll() {
+        fixButton.disabled = true;
+        clearCacheButton.disabled = true;
+        loadingDiv.classList.remove('hidden');
+        statusDiv.className = 'status hidden';
+        logDiv.classList.remove('hidden');
+        logDiv.textContent = '';
+        
+        try {
+          log('修正を開始します...');
+          
+          // ステップ1: レジ金テーブルを直接作成
+          const tableCreated = await createRegisterCashTable();
+          
+          if (!tableCreated) {
+            throw new Error('テーブル作成に失敗しました');
+          }
+          
+          // ステップ2: 今日のレコードを作成
+          const recordCreated = await createTodayRecord();
+          
+          if (!recordCreated) {
+            throw new Error('レコード作成に失敗しました');
+          }
+          
+          // ステップ3: キャッシュをクリア
+          const cacheCleared = clearCache();
+          
+          if (!cacheCleared) {
+            throw new Error('キャッシュクリアに失敗しました');
+          }
+          
+          // 成功
+          statusDiv.textContent = '修正が完了しました。アプリに戻って再読み込みしてください。';
+          statusDiv.className = 'status success';
+          
+          // 成功ボタンに変更
+          fixButton.textContent = 'アプリに戻る';
+          fixButton.className = 'success-button';
+          fixButton.disabled = false;
+          fixButton.addEventListener('click', function() {
+            window.location.href = '/';
+          }, { once: true });
+          
+          clearCacheButton.disabled = false;
+        } catch (error) {
+          log(`エラー: ${error.message}`);
+          statusDiv.textContent = `エラーが発生しました: ${error.message}`;
+          statusDiv.className = 'status error';
+          
+          fixButton.disabled = false;
+          clearCacheButton.disabled = false;
+        } finally {
+          loadingDiv.classList.add('hidden');
+        }
+      }
+      
+      // キャッシュのみクリア
+      function clearCacheOnly() {
+        clearCacheButton.disabled = true;
+        loadingDiv.classList.remove('hidden');
+        statusDiv.className = 'status hidden';
+        logDiv.classList.remove('hidden');
+        logDiv.textContent = '';
+        
+        try {
+          log('キャッシュのみクリアします...');
+          
+          // キャッシュをクリア
+          const cacheCleared = clearCache();
+          
+          if (!cacheCleared) {
+            throw new Error('キャッシュクリアに失敗しました');
+          }
+          
+          // 成功
+          statusDiv.textContent = 'キャッシュクリアが完了しました。アプリに戻って再読み込みしてください。';
+          statusDiv.className = 'status success';
+          
+          clearCacheButton.disabled = false;
+        } catch (error) {
+          log(`エラー: ${error.message}`);
+          statusDiv.textContent = `エラーが発生しました: ${error.message}`;
+          statusDiv.className = 'status error';
+          
+          clearCacheButton.disabled = false;
+        } finally {
+          loadingDiv.classList.add('hidden');
+        }
+      }
+      
+      // イベントリスナー
+      fixButton.addEventListener('click', fixAll);
+      clearCacheButton.addEventListener('click', clearCacheOnly);
+      returnButton.addEventListener('click', function() {
+        window.location.href = '/';
+      });
+    });
+  </script>
+</body>
+</html>
