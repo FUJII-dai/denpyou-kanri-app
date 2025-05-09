@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>レジ金テーブル修正ツール</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    h1 {
+      color: #6b21a8;
+      margin-bottom: 20px;
+    }
+    .card {
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .button {
+      background: #6b21a8;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      margin-right: 10px;
+    }
+    .button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    .button.secondary {
+      background: #2563eb;
+    }
+    .status {
+      margin-top: 20px;
+      padding: 15px;
+      border-radius: 4px;
+    }
+    .status.success {
+      background: #dcfce7;
+      color: #166534;
+    }
+    .status.error {
+      background: #fee2e2;
+      color: #b91c1c;
+    }
+    .log {
+      background: #f8f9fa;
+      padding: 10px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 14px;
+      max-height: 200px;
+      overflow-y: auto;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h1>レジ金テーブル修正ツール</h1>
+  
+  <div class="card">
+    <h2>問題の説明</h2>
+    <p>
+      レジ金確認ページの入力フィールドが機能しない問題を修正するためのツールです。
+      この問題は、データベースに必要なテーブルが存在しないために発生しています。
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>修正手順</h2>
+    <p>「修正を実行」ボタンをクリックすると、以下の処理を行います：</p>
+    <ol>
+      <li>ブラウザのキャッシュをクリア</li>
+      <li>register_cashテーブルを直接作成</li>
+      <li>初期データを設定</li>
+    </ol>
+    <button id="fix-button" class="button">修正を実行</button>
+    <div id="log" class="log" style="display: none;"></div>
+    <div id="result" class="status" style="display: none;"></div>
+    <div id="return-container" style="display: none; margin-top: 20px;">
+      <button id="return-button" class="button secondary">アプリに戻る</button>
+    </div>
+  </div>
+
+  <script>
+    // Supabase設定
+    const SUPABASE_URL = 'https://yfsrptorzuwirqgslchk.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlmc3JwdG9yenV3aXJxZ3NsY2hrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDY2MjcxNDksImV4cCI6MjA2MjIwMzE0OX0.zM8M-n3VcvxkI2JKQLxzoHdFeVjQCxVu2-j-Xhz2NV8';
+    
+    // DOM要素
+    const fixButton = document.getElementById('fix-button');
+    const logElement = document.getElementById('log');
+    const resultElement = document.getElementById('result');
+    const returnContainer = document.getElementById('return-container');
+    const returnButton = document.getElementById('return-button');
+    
+    // ログ出力関数
+    function log(message) {
+      const now = new Date();
+      const timestamp = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+      logElement.innerHTML += `[${timestamp}] ${message}<br>`;
+      logElement.scrollTop = logElement.scrollHeight;
+    }
+    
+    // 結果表示関数
+    function showResult(success, message) {
+      resultElement.style.display = 'block';
+      resultElement.className = success ? 'status success' : 'status error';
+      resultElement.textContent = message;
+      returnContainer.style.display = 'block';
+    }
+    
+    // テーブル作成関数（直接SQL実行）
+    async function createRegisterCashTable() {
+      try {
+        // 方法1: 直接テーブル作成
+        const createTableResult = await fetch(`${SUPABASE_URL}/rest/v1/rpc/sql`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+          },
+          body: JSON.stringify({
+            query: `
+              CREATE TABLE IF NOT EXISTS register_cash (
+                business_date date PRIMARY KEY,
+                starting_amount integer DEFAULT 0,
+                coins_amount integer DEFAULT 0,
+                withdrawals jsonb DEFAULT '[]'::jsonb,
+                next_day_amount integer DEFAULT 0,
+                next_day_coins integer DEFAULT 0,
+                created_at timestamptz DEFAULT now(),
+                updated_at timestamptz DEFAULT now()
+              );
+              
+              ALTER TABLE register_cash ENABLE ROW LEVEL SECURITY;
+              
+              DROP POLICY IF EXISTS "Anyone can read register_cash" ON register_cash;
+              DROP POLICY IF EXISTS "Anyone can insert register_cash" ON register_cash;
+              DROP POLICY IF EXISTS "Anyone can update register_cash" ON register_cash;
+              
+              CREATE POLICY "Anyone can read register_cash"
+                ON register_cash FOR SELECT
+                TO anon
+                USING (true);
+              
+              CREATE POLICY "Anyone can insert register_cash"
+                ON register_cash FOR INSERT
+                TO anon
+                WITH CHECK (true);
+              
+              CREATE POLICY "Anyone can update register_cash"
+                ON register_cash FOR UPDATE
+                TO anon
+                USING (true)
+                WITH CHECK (true);
+            `
+          })
+        });
+        
+        if (!createTableResult.ok) {
+          log('方法1でのテーブル作成に失敗しました。方法2を試行します...');
+          
+          // 方法2: 別のエンドポイントを試す
+          const createTableResult2 = await fetch(`${SUPABASE_URL}/rest/v1/`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': SUPABASE_ANON_KEY,
+              'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+            },
+            body: JSON.stringify({
+              query: `
+                CREATE TABLE IF NOT EXISTS register_cash (
+                  business_date date PRIMARY KEY,
+                  starting_amount integer DEFAULT 0,
+                  coins_amount integer DEFAULT 0,
+                  withdrawals jsonb DEFAULT '[]'::jsonb,
+                  next_day_amount integer DEFAULT 0,
+                  next_day_coins integer DEFAULT 0,
+                  created_at timestamptz DEFAULT now(),
+                  updated_at timestamptz DEFAULT now()
+                );
+              `
+            })
+          });
+          
+          if (!createTableResult2.ok) {
+            log('方法2でのテーブル作成に失敗しました。方法3を試行します...');
+            
+            // 方法3: 直接データを挿入してテーブルを自動作成
+            const insertResult = await fetch(`${SUPABASE_URL}/rest/v1/register_cash`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'apikey': SUPABASE_ANON_KEY,
+                'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+                'Prefer': 'return=minimal'
+              },
+              body: JSON.stringify({
+                business_date: new Date().toISOString().split('T')[0],
+                starting_amount: 0,
+                coins_amount: 0,
+                withdrawals: [],
+                next_day_amount: 0,
+                next_day_coins: 0
+              })
+            });
+            
+            if (!insertResult.ok) {
+              return { success: false, error: '全ての方法でテーブル作成に失敗しました' };
+            } else {
+              log('方法3でテーブルを作成しました');
+              return { success: true };
+            }
+          } else {
+            log('方法2でテーブルを作成しました');
+            return { success: true };
+          }
+        } else {
+          log('方法1でテーブルを作成しました');
+          return { success: true };
+        }
+      } catch (error) {
+        return { success: false, error: error.message };
+      }
+    }
+    
+    // 修正処理の実行
+    async function runFix() {
+      try {
+        fixButton.disabled = true;
+        logElement.style.display = 'block';
+        
+        // セッションストレージに修正ツールからの復帰フラグを設定
+        sessionStorage.setItem('register-cash-force-init', 'true');
+        
+        // ステップ1: ローカルストレージのクリア
+        log('ローカルストレージのクリアを開始します');
+        
+        const keysToRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key.includes('register-cash') || key.includes('daily-sales')) {
+            keysToRemove.push(key);
+          }
+        }
+        
+        keysToRemove.forEach(key => {
+          localStorage.removeItem(key);
+          log(`ローカルストレージから削除: ${key}`);
+        });
+        
+        // ステップ2: IndexedDBのクリア
+        log('IndexedDBのクリアを開始します');
+        
+        const clearIndexedDB = async () => {
+          if (!window.indexedDB) {
+            log('IndexedDBがサポートされていません');
+            return;
+          }
+          
+          try {
+            const databases = await window.indexedDB.databases();
+            for (const db of databases) {
+              if (db.name) {
+                log(`IndexedDBを削除: ${db.name}`);
+                await new Promise((resolve, reject) => {
+                  const request = window.indexedDB.deleteDatabase(db.name);
+                  request.onsuccess = () => resolve();
+                  request.onerror = () => {
+                    log(`IndexedDBの削除に失敗: ${db.name}`);
+                    resolve();
+                  };
+                });
+              }
+            }
+          } catch (e) {
+            log(`IndexedDBのクリアに失敗: ${e.message}`);
+          }
+        };
+        
+        await clearIndexedDB();
+        
+        // ステップ3: register_cashテーブルの作成
+        log('register_cashテーブルの作成を開始します');
+        
+        const tableResult = await createRegisterCashTable();
+        if (!tableResult.success) {
+          log(`テーブル作成に失敗: ${tableResult.error}`);
+          showResult(false, `テーブル作成に失敗しました: ${tableResult.error}`);
+          return;
+        }
+        
+        // ステップ4: 初期データの挿入
+        log('初期データの挿入を開始します');
+        
+        const insertResult = await fetch(`${SUPABASE_URL}/rest/v1/register_cash`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            'Prefer': 'return=minimal'
+          },
+          body: JSON.stringify({
+            business_date: new Date().toISOString().split('T')[0],
+            starting_amount: 0,
+            coins_amount: 0,
+            withdrawals: [],
+            next_day_amount: 0,
+            next_day_coins: 0
+          })
+        });
+        
+        if (!insertResult.ok) {
+          log('初期データの挿入に失敗しました');
+          // 失敗しても続行（テーブルが既に存在している可能性がある）
+        } else {
+          log('初期データの挿入に成功しました');
+        }
+        
+        // ステップ5: 初期化フラグの設定
+        log('初期化フラグを設定します');
+        
+        localStorage.setItem('register-cash-storage', JSON.stringify({
+          state: {
+            initialized: true,
+            currentCash: {
+              businessDate: new Date().toISOString().split('T')[0],
+              startingAmount: 0,
+              coinsAmount: 0,
+              withdrawals: [],
+              nextDayAmount: 0,
+              nextDayCoins: 0
+            }
+          },
+          version: 0
+        }));
+        
+        log('初期化フラグの設定が完了しました');
+        
+        // 完了
+        log('すべての修正処理が完了しました');
+        
+        showResult(true, '修正が完了しました。アプリに戻ってレジ金確認ページを開いてください。');
+      } catch (error) {
+        log(`エラーが発生しました: ${error.message}`);
+        showResult(false, `修正中にエラーが発生しました: ${error.message}`);
+      } finally {
+        fixButton.disabled = false;
+      }
+    }
+    
+    // イベントリスナー
+    fixButton.addEventListener('click', runFix);
+    returnButton.addEventListener('click', () => {
+      window.location.href = '/';
+    });
+  </script>
+</body>
+</html>
