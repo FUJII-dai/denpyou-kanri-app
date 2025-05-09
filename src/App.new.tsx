@@ -8,7 +8,7 @@ import { isResetTime, getTimeUntilNextReset } from './utils/businessHours';
 import useOrderStore from './store/orderStore';
 import useStaffStore from './store/staffStore';
 import useDailySalesStore from './store/dailySalesStore';
-import useRegisterCashStore from './store/registerCashStore';
+import useRegisterCashStore from './store/registerCashStore.new';
 
 const queryClient = new QueryClient({
   defaultOptions: {
