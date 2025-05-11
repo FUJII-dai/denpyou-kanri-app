@@ -28,6 +28,7 @@ const RegisterCash: React.FC<RegisterCashProps> = ({ onBack }) => {
 
   const [withdrawalForms, setWithdrawalForms] = useState([{ amount: '', note: '' }]);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [inputEnabled, setInputEnabled] = useState(false);
   const mountedRef = useRef(false);
 
   useEffect(() => {
@@ -37,8 +38,10 @@ const RegisterCash: React.FC<RegisterCashProps> = ({ onBack }) => {
     const initializeData = async () => {
       try {
         await loadRegisterCash(businessDate);
+        setInputEnabled(true);
       } catch (error) {
         console.error('[RegisterCash] Initialization error:', error);
+        setTimeout(() => setInputEnabled(true), 1000);
       }
     };
 
@@ -288,22 +291,36 @@ const RegisterCash: React.FC<RegisterCashProps> = ({ onBack }) => {
             <div>
               <label className="block text-sm text-gray-600 mb-1">開始レジ金</label>
               <input
-                type="number"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 className="border rounded-md p-2 w-full"
                 value={currentCash?.startingAmount || ''}
-                onChange={handleStartingAmountChange}
+                onChange={(e) => {
+                  const value = e.target.value.replace(/[^0-9]/g, '');
+                  handleStartingAmountChange({...e, target: {...e.target, value}});
+                }}
+                onFocus={(e) => e.target.select()}
                 placeholder="0"
+                disabled={!inputEnabled}
               />
             </div>
 
             <div>
               <label className="block text-sm text-gray-600 mb-1">小銭</label>
               <input
-                type="number"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 className="border rounded-md p-2 w-full"
                 value={currentCash?.coinsAmount || ''}
-                onChange={handleCoinsAmountChange}
+                onChange={(e) => {
+                  const value = e.target.value.replace(/[^0-9]/g, '');
+                  handleCoinsAmountChange({...e, target: {...e.target, value}});
+                }}
+                onFocus={(e) => e.target.select()}
                 placeholder="0"
+                disabled={!inputEnabled}
               />
             </div>
 
@@ -318,6 +335,7 @@ const RegisterCash: React.FC<RegisterCashProps> = ({ onBack }) => {
                 <button
                   className="text-blue-600 text-sm flex items-center gap-1"
                   onClick={handleAddWithdrawalForm}
+                  disabled={!inputEnabled}
                 >
                   <Plus className="w-4 h-4" />
                   フォーム追加
@@ -343,11 +361,18 @@ const RegisterCash: React.FC<RegisterCashProps> = ({ onBack }) => {
                 {withdrawalForms.map((form, index) => (
                   <div key={index} className="grid grid-cols-12 gap-2">
                     <input
-                      type="number"
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
                       className="col-span-3 border rounded-md p-2"
                       value={form.amount}
-                      onChange={(e) => handleWithdrawalChange(index, 'amount', e.target.value)}
+                      onChange={(e) => {
+                        const value = e.target.value.replace(/[^0-9]/g, '');
+                        handleWithdrawalChange(index, 'amount', value);
+                      }}
+                      onFocus={(e) => e.target.select()}
                       placeholder="出金額"
+                      disabled={!inputEnabled}
                     />
                     <input
                       type="text"
@@ -355,12 +380,13 @@ const RegisterCash: React.FC<RegisterCashProps> = ({ onBack }) => {
                       value={form.note}
                       onChange={(e) => handleWithdrawalChange(index, 'note', e.target.value)}
                       placeholder="備考（任意）"
+                      disabled={!inputEnabled}
                     />
                     <div className="col-span-2 flex gap-1">
                       <button
                         className="flex-1 bg-blue-600 text-white p-2 rounded-md"
                         onClick={() => handleSubmitWithdrawal(index)}
-                        disabled={!form.amount}
+                        disabled={!form.amount || !inputEnabled}
                       >
                         <Plus className="w-4 h-4 mx-auto" />
                       </button>
@@ -368,6 +394,7 @@ const RegisterCash: React.FC<RegisterCashProps> = ({ onBack }) => {
                         <button
                           className="flex-1 bg-red-600 text-white p-2 rounded-md"
                           onClick={() => handleRemoveWithdrawalForm(index)}
+                          disabled={!inputEnabled}
                         >
                           <X className="w-4 h-4 mx-auto" />
                         </button>
@@ -390,22 +417,36 @@ const RegisterCash: React.FC<RegisterCashProps> = ({ onBack }) => {
             <div>
               <label className="block text-sm text-gray-600 mb-1">翌日レジ金</label>
               <input
-                type="number"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 className="border rounded-md p-2 w-full"
                 value={currentCash?.nextDayAmount || ''}
-                onChange={handleNextDayAmountChange}
+                onChange={(e) => {
+                  const value = e.target.value.replace(/[^0-9]/g, '');
+                  handleNextDayAmountChange({...e, target: {...e.target, value}});
+                }}
+                onFocus={(e) => e.target.select()}
                 placeholder="0"
+                disabled={!inputEnabled}
               />
             </div>
 
             <div>
               <label className="block text-sm text-gray-600 mb-1">翌日小銭</label>
               <input
-                type="number"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 className="border rounded-md p-2 w-full"
                 value={currentCash?.nextDayCoins || ''}
-                onChange={handleNextDayCoinsChange}
+                onChange={(e) => {
+                  const value = e.target.value.replace(/[^0-9]/g, '');
+                  handleNextDayCoinsChange({...e, target: {...e.target, value}});
+                }}
+                onFocus={(e) => e.target.select()}
                 placeholder="0"
+                disabled={!inputEnabled}
               />
             </div>
           </div>
