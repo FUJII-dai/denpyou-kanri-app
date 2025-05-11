@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { Database } from '../types/supabase';
+type Database = any;
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -75,7 +75,7 @@ export const clearSupabaseCache = async () => {
         await Promise.all(
           databases
             .filter(db => db.name && !db.name.startsWith('funfare-'))
-            .map(db => new Promise<void>((resolve, reject) => {
+            .map(db => new Promise<void>((resolve) => {
               try {
                 console.log(`Clearing IndexedDB: ${db.name}`);
                 const request = window.indexedDB.deleteDatabase(db.name!);
@@ -119,9 +119,9 @@ export const clearSupabaseCache = async () => {
 
     const clearSupabaseState = async () => {
       try {
-        console.log('Resetting Supabase REST client...');
-        // Supabaseのキャッシュをクリア
-        await supabase.rest.reset();
+        console.log('Resetting Supabase client...');
+        // Supabaseのキャッシュをクリア - reset method not available
+        console.log('(Note: REST client reset not available in this version)');
       } catch (e) {
         console.warn('Supabase cache reset failed:', e);
       }
@@ -146,7 +146,6 @@ export const clearSupabaseCache = async () => {
     // 接続を再確立
     try {
       await supabase.removeAllChannels();
-      await supabase.rest.reset();
       console.log('Supabase connection reset successful');
     } catch (e) {
       console.warn('Supabase connection reset failed:', e);
@@ -167,7 +166,7 @@ export const checkDatabaseConnection = async () => {
     await clearSupabaseCache();
     
     // 簡単なクエリを実行して接続を確認
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('orders')
       .select('count')
       .limit(1)
