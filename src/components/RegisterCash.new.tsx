@@ -56,7 +56,11 @@ const NumericInput: React.FC<{
   );
 };
 
-const RegisterCash: React.FC = () => {
+interface RegisterCashProps {
+  onBack?: () => void;
+}
+
+const RegisterCash: React.FC<RegisterCashProps> = ({ onBack }) => {
   const { orders } = useOrderStore();
   const { 
     currentCash, 
@@ -309,7 +313,11 @@ const RegisterCash: React.FC = () => {
   };
 
   const handleBack = () => {
-    window.history.back();
+    if (onBack) {
+      onBack();
+    } else {
+      window.history.back();
+    }
   };
 
   if (isRegisterLoading || !registerInitialized || !isInitialized) {
