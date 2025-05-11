@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import Dashboard from './components/Dashboard';
 import NewOrder from './components/NewOrder';
 import ActiveOrders from './components/ActiveOrders';
 import CompletedOrders from './components/CompletedOrders';
 import DailySales from './components/DailySales';
 import StaffManagement from './components/StaffManagement';
-import RegisterCash from './components/RegisterCash';
+import RegisterCash from './components/RegisterCash.new';
 
 const GirlsBarApp = () => {
   const [currentScreen, setCurrentScreen] = useState('dashboard');

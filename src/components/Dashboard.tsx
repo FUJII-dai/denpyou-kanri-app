@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { CircleDollarSign, Clock, BarChart3, Users, Plus, CheckCircle, Trash2, Wallet, Settings as SettingsIcon, Bug } from 'lucide-react';
+import { Clock, BarChart3, Users, Plus, CheckCircle, Trash2, Wallet, Settings as SettingsIcon } from 'lucide-react';
 import useOrderStore from '../store/orderStore';
 import useDailySalesStore from '../store/dailySalesStore';
 import { calculateTotal, calculateServiceCharge, formatPrice } from '../utils/price';
 import { getBusinessDate } from '../utils/businessHours';
 import TrashBin from './TrashBin';
 import Settings from './Settings';
-import TimeDebugger from './TimeDebugger';
 
 interface DashboardProps {
   onScreenChange: (screen: string) => void;
@@ -17,7 +16,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onScreenChange }) => {
   const { currentSales, loadDailySales, subscribeToChanges, unsubscribe } = useDailySalesStore();
   const [showTrashBin, setShowTrashBin] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [showTimeDebugger, setShowTimeDebugger] = useState(false);
   
   useEffect(() => {
     const businessDate = getBusinessDate();
@@ -51,13 +49,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onScreenChange }) => {
       <header className="bg-purple-800 text-white p-4 flex justify-between items-center">
         <h1 className="text-xl font-bold">FunFare 伝票管理v2</h1>
         <div className="flex items-center gap-2">
-          <button
-            className="bg-red-600 text-white p-2 rounded-md"
-            onClick={() => setShowTimeDebugger(true)}
-            title="タイマーデバッグ"
-          >
-            <Bug className="w-4 h-4" />
-          </button>
           <button
             className="bg-gray-700 text-white p-2 rounded-md"
             onClick={() => setShowSettings(true)}
@@ -161,7 +152,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onScreenChange }) => {
 
       {showTrashBin && <TrashBin onClose={() => setShowTrashBin(false)} />}
       {showSettings && <Settings onClose={() => setShowSettings(false)} />}
-      {showTimeDebugger && <TimeDebugger onClose={() => setShowTimeDebugger(false)} />}
     </div>
   );
 };
